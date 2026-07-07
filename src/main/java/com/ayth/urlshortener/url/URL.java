@@ -15,7 +15,8 @@ import java.time.Instant;
 })
 public class URL {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "url_id_generator")
+    @SequenceGenerator(name = "url_id_generator", sequenceName = "url_id_seq", allocationSize = 100)
     private Long id;
 
     @Column(nullable = false, length = 2048)

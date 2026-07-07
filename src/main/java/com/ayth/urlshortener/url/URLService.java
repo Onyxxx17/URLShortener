@@ -112,19 +112,15 @@ class URLService {
         newURL.setExpiresAt(Instant.now().plus(7, ChronoUnit.DAYS));
         newURL.setClickCount(0);
 
-        //Implement redis later
+        // 1. Save the new URL. Since we use SEQUENCE generator, Hibernate will fetch the next ID
+        // from the database sequence and populate the ID on newURL, but it won't execute the SQL INSERT yet.
+        urlRepository.save(newURL);
 
-        
-        // 1. Insert into DB with a temporary random code to satisfy the NOT NULL database constraint.
-        newURL.setShortCode("TEMP-" + java.util.UUID.randomUUID().toString().substring(0, 5));
-        urlRepository.saveAndFlush(newURL);
-
-        // 2. Encode the generated auto-incremented ID using Sqids
+        // 2. Encode the generated ID using Sqids
         String shortCode = SQIDS.encode(List.of(newURL.getId()));
 
-        // 3. Update the URL record with the generated Sqids short code
+        // 3. Set the generated shortCode. Hibernate will write this value in the single SQL INSERT statement.
         newURL.setShortCode(shortCode);
-        urlRepository.save(newURL);
 
         return newURL;
     }

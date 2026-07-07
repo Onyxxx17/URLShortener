@@ -2,6 +2,7 @@ package com.ayth.urlshortener.url;
 
 import com.ayth.urlshortener.dto.response.CreateUrlResponse;
 import com.ayth.urlshortener.dto.response.StatsResponse;
+import com.ayth.urlshortener.exception.UrlAlreadyExistsException;
 import com.ayth.urlshortener.exception.UrlExpiredException;
 import com.ayth.urlshortener.exception.UrlNotFoundException;
 import com.ayth.urlshortener.util.ShortCodeGenerator;
@@ -100,7 +101,7 @@ class URLService {
         String shortCode;
         Optional<URL> optional = urlRepository.findByOriginalUrl(originalUrl);
         if(optional.isPresent()) {
-            throw new UrlNotFoundException("URL already exists");
+            throw new UrlAlreadyExistsException("URL already exists");
         }
 
         URL newURL = new URL();

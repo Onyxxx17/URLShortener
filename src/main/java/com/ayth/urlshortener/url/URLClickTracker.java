@@ -8,7 +8,8 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 
 @Component
-class URLClickTracker {
+public class URLClickTracker {
+    public static volatile String lastExecutionThreadName;
 
     private final URLRepository urlRepository;
 
@@ -20,6 +21,7 @@ class URLClickTracker {
     @Async
     @Transactional
     public void incrementClickCountAndUpdateLastAccessed(String shortCode) {
+        lastExecutionThreadName = Thread.currentThread().getName();
         urlRepository.findByShortCode(shortCode).ifPresent(url -> {
             url.setClickCount(url.getClickCount() + 1);
             url.setLastAccessedAt(Instant.now());

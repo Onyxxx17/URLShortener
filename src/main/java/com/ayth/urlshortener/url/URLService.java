@@ -5,9 +5,10 @@ import com.ayth.urlshortener.dto.response.StatsResponse;
 import com.ayth.urlshortener.exception.UrlAlreadyExistsException;
 import com.ayth.urlshortener.exception.UrlExpiredException;
 import com.ayth.urlshortener.exception.UrlNotFoundException;
-import com.ayth.urlshortener.util.ShortCodeGenerator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.sqids.Sqids;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -17,6 +18,8 @@ import java.util.Optional;
 
 @Service
 class URLService {
+
+    private static final Sqids SQIDS = Sqids.builder().minLength(7).build();
 
     private final URLRepository urlRepository;
     private final URLClickTracker urlClickTracker;
@@ -97,8 +100,8 @@ class URLService {
                 .build();
     }
 
+    @Transactional
     public URL createUrl(String originalUrl) {
-        String shortCode;
         Optional<URL> optional = urlRepository.findByOriginalUrl(originalUrl);
         if(optional.isPresent()) {
             throw new UrlAlreadyExistsException("URL already exists");
@@ -106,17 +109,21 @@ class URLService {
 
         URL newURL = new URL();
         newURL.setOriginalUrl(originalUrl);
-
-        do{
-            shortCode = ShortCodeGenerator.generateShortCode();
-        }while (urlRepository.findByShortCode(newURL.getShortCode()).isPresent());
-
-        //Add to redis (Implement Later)
-
         newURL.setExpiresAt(Instant.now().plus(7, ChronoUnit.DAYS));
         newURL.setClickCount(0);
-        newURL.setShortCode(shortCode);
 
+        //Implement redis later
+
+        
+        // 1. Insert into DB with a temporary random code to satisfy the NOT NULL database constraint.
+        newURL.setShortCode("TEMP-" + java.util.UUID.randomUUID().toString().substring(0, 5));
+        urlRepository.saveAndFlush(newURL);
+
+        // 2. Encode the generated auto-incremented ID using Sqids
+        String shortCode = SQIDS.encode(List.of(newURL.getId()));
+
+        // 3. Update the URL record with the generated Sqids short code
+        newURL.setShortCode(shortCode);
         urlRepository.save(newURL);
 
         return newURL;

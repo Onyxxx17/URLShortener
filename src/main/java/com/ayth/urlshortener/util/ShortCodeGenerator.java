@@ -3,6 +3,7 @@ package com.ayth.urlshortener.util;
 import java.security.SecureRandom;
 
 public class ShortCodeGenerator {
+    /*
     private static final String ALPHABET= "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
     private static final int LENGTH = 6;
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -15,4 +16,5 @@ public class ShortCodeGenerator {
         }
         return sb.toString();
     }
+    */
 }

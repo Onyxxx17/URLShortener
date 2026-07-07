@@ -18,10 +18,12 @@ import java.util.Optional;
 class URLService {
 
     private final URLRepository urlRepository;
+    private final URLClickTracker urlClickTracker;
 
     @Autowired
-    public URLService(URLRepository urlRepository) {
+    public URLService(URLRepository urlRepository, URLClickTracker urlClickTracker) {
         this.urlRepository = urlRepository;
+        this.urlClickTracker = urlClickTracker;
     }
 
     public URL findByShortURL(String shortURL) {
@@ -34,38 +36,25 @@ class URLService {
     public String getUrlForRedirect(String shortCode) {
         URL url = findByShortURL(shortCode);
 
-        // Check if URL has expired
         if (url.getExpiresAt() != null && url.getExpiresAt().isBefore(Instant.now())) {
             throw new UrlExpiredException(
                 "This short URL has expired and is no longer available"
             );
         }
 
-        this.incrementClickCountAndUpdateLastAccessed(shortCode);
+        urlClickTracker.incrementClickCountAndUpdateLastAccessed(shortCode);
         return url.getOriginalUrl();
-    }
-
-    /**
-     * Increment click count and update last accessed time for a URL
-     */
-    public void incrementClickCountAndUpdateLastAccessed(String shortCode) {
-        URL url = findByShortURL(shortCode);
-
-        url.setClickCount(url.getClickCount() + 1);
-        url.setLastAccessedAt(Instant.now());
-        urlRepository.save(url);
     }
 
     public StatsResponse createUrlStatsResponse(String shortCode) {
         URL url = this.findByShortURL(shortCode);
 
-        // Update last accessed time when stats are viewed
         url.setLastAccessedAt(Instant.now());
         urlRepository.save(url);
 
         Instant now = Instant.now();
         Long daysUntilExpiry = null;
-        Boolean isExpired = false;
+        boolean isExpired = false;
 
         if (url.getExpiresAt() != null) {
             isExpired = url.getExpiresAt().isBefore(now);

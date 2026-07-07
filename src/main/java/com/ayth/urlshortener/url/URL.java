@@ -38,7 +38,6 @@ public class URL {
 
     @Column
     private Instant updatedAt;
-
     
     @PrePersist
     public void prePersist() {

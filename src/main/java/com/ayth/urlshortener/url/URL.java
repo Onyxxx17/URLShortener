@@ -9,7 +9,10 @@ import java.time.Instant;
 @Getter
 @Setter
 @Entity
-@Table(name = "url")
+@Table(name = "url", indexes = {
+    @Index(name = "idx_short_code", columnList = "shortCode", unique = true),
+    @Index(name = "idx_original_url", columnList = "originalUrl")
+})
 public class URL {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -24,8 +27,19 @@ public class URL {
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
+    @Column
     private Instant expiresAt;
 
+    @Column(nullable = false)
+    private long clickCount = 0;
+
+    @Column
+    private Instant lastAccessedAt;
+
+    @Column
+    private Instant updatedAt;
+
+    
     @PrePersist
     public void prePersist() {
         this.createdAt = Instant.now();

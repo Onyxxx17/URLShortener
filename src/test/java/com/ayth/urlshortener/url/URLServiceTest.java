@@ -191,7 +191,7 @@ class URLServiceTest {
             assertNotNull(response.getLastAccessedAt());
             assertTrue(response.getDaysUntilExpiry() >= 4);
             assertTrue(response.getAgeInDays() >= 2);
-            assertFalse(response.isExpired());
+            assertFalse(response.getIsExpired());
         } finally {
             urlRepository.delete(url);
         }

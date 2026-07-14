@@ -1,14 +1,17 @@
 package com.ayth.urlshortener.url;
 
+import com.ayth.urlshortener.auth.UserPrincipal;
 import com.ayth.urlshortener.dto.request.CreateUrlRequest;
 import com.ayth.urlshortener.dto.response.CreateUrlResponse;
 import com.ayth.urlshortener.dto.response.StatsResponse;
+import com.ayth.urlshortener.users.User;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -33,21 +36,28 @@ class URLController {
 
     /// =======Create a new URL mapping=======
     @PostMapping("/create")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<CreateUrlResponse> createURL(
             @Valid @RequestBody CreateUrlRequest createUrlRequest,
             HttpServletRequest request,
-            HttpSession session) {
+            Authentication authentication) {
 
         // Build base URL from request
-        String baseUrl = request.getScheme() + "://" + 
-                        request.getServerName() + 
-                        (request.getServerPort() != 80 && request.getServerPort() != 443 
-                            ? ":" + request.getServerPort() 
+        String baseUrl = request.getScheme() + "://" +
+                        request.getServerName() +
+                        (request.getServerPort() != 80 && request.getServerPort() != 443
+                            ? ":" + request.getServerPort()
                             : "");
 
+        // Retrieve the authenticated user directly from the SecurityContext —
+        // no additional DB call needed since UserPrincipal holds the entity.
+        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+        User user = principal.getUser();
+
         CreateUrlResponse response = urlService.createUrlWithResponse(
-            createUrlRequest.getOriginalUrl(), 
-            baseUrl, session
+            createUrlRequest.getOriginalUrl(),
+            baseUrl,
+            user
         );
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -58,6 +68,4 @@ class URLController {
     public ResponseEntity<StatsResponse> getStats(@PathVariable String shortCode) {
         StatsResponse response = urlService.createUrlStatsResponse(shortCode);
         return ResponseEntity.ok(response);
-    }
-
-}
+    }}

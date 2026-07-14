@@ -1,0 +1,45 @@
+package com.ayth.urlshortener.email;
+
+import com.ayth.urlshortener.users.User;
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import org.hibernate.annotations.UuidGenerator;
+
+import java.time.Instant;
+import java.util.UUID;
+
+@Getter
+@Setter
+@Entity
+@Table(name = "email_verification_tokens")
+public class EmailVerificationToken {
+
+    @Id
+    @UuidGenerator(style = UuidGenerator.Style.TIME)
+    @Column(columnDefinition = "uuid", updatable = false, nullable = false)
+    private UUID id;
+
+    /** The opaque token value sent to the user's inbox. */
+    @Column(nullable = false, unique = true, columnDefinition = "uuid")
+    private UUID token;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    @Column(nullable = false)
+    private Instant expiresAt;
+
+    /** Non-null once the token has been consumed. */
+    @Column
+    private Instant usedAt;
+
+    public boolean isExpired() {
+        return Instant.now().isAfter(expiresAt);
+    }
+
+    public boolean isUsed() {
+        return usedAt != null;
+    }
+}

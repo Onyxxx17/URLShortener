@@ -3,7 +3,6 @@ package com.ayth.urlshortener.auth;
 import com.ayth.urlshortener.dto.request.LoginRequest;
 import com.ayth.urlshortener.dto.request.RegisterRequest;
 import com.ayth.urlshortener.dto.response.AuthResponse;
-import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -28,20 +27,20 @@ class AuthController {
 
     @PostMapping("/login")
     public AuthResponse login(
-            @RequestBody @Valid LoginRequest request,
-            HttpSession session
+            @RequestBody @Valid LoginRequest request
     ) {
-        System.out.println("Login endpoint hit");
-        return authService.login(request, session);
+        return authService.login(request);
     }
 
-
-    @PostMapping("/logout")
-    public String logout(
-            HttpSession session
-    ) {
-        authService.logout(session);
-        return "Logged out";
+    /**
+     * Called with the token that was emailed to the user after registration.
+     * Example: GET /verify-email?token=550e8400-e29b-41d4-a716-446655440000
+     */
+    @GetMapping("/verify-email")
+    public AuthResponse verifyEmail(@RequestParam String token) {
+        authService.verifyEmail(token);
+        return AuthResponse.builder()
+                .message("Email verified successfully. You can now log in.")
+                .build();
     }
-
 }

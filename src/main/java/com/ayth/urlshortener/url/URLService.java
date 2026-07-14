@@ -7,7 +7,6 @@ import com.ayth.urlshortener.exception.UrlExpiredException;
 import com.ayth.urlshortener.exception.UrlNotFoundException;
 import com.ayth.urlshortener.users.User;
 import com.ayth.urlshortener.users.UserRepository;
-import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -90,8 +89,13 @@ class URLService {
                 .build();
     }
 
-    public CreateUrlResponse createUrlWithResponse(String originalUrl, String baseUrl, HttpSession session) {
-        URL newURL = this.createUrl(originalUrl,session);
+    /**
+     * @param user The authenticated {@link User} resolved from the
+     *             {@link org.springframework.security.core.context.SecurityContext}
+     *             — no extra DB lookup needed.
+     */
+    public CreateUrlResponse createUrlWithResponse(String originalUrl, String baseUrl, User user) {
+        URL newURL = this.createUrl(originalUrl, user);
         String fullShortUrl = baseUrl + "/" + newURL.getShortCode();
 
         return CreateUrlResponse.builder()
@@ -107,39 +111,34 @@ class URLService {
     }
 
     @Transactional
-    public URL createUrl(String originalUrl, HttpSession session) {
+    public URL createUrl(String originalUrl, User user) {
+        // Auth guard is handled by @PreAuthorize("isAuthenticated()") in the
+        // controller — if we reach here the user is always non-null.
 
-        Long userId = (Long) session.getAttribute("userId");
         URL newURL = new URL();
 
+        // Get next sequence ID
+        Long id = urlRepository.getNextId();
+        if (id == null) {
+            throw new RuntimeException("Failed to generate ID from sequence");
+        }
+
+        newURL.setId(id);
         newURL.setOriginalUrl(originalUrl);
         newURL.setExpiresAt(Instant.now().plus(7, ChronoUnit.DAYS));
         newURL.setClickCount(0);
+        newURL.setUser(user);
 
-        if (userId != null) {
-            User user = userRepository.findById(userId)
-                    .orElseThrow(() ->
-                            new RuntimeException("User not found"));
-
-            newURL.setUser(user);
-        }
-
-        Optional<URL> optional = urlRepository.findByOriginalUrl(originalUrl);
-        if(optional.isPresent()) {
+        // Check for duplicate URL per user
+        Optional<URL> optional = urlRepository.findByUserAndOriginalUrl(user, originalUrl);
+        if (optional.isPresent()) {
             throw new UrlAlreadyExistsException("URL already exists");
         }
 
-        // 1. Save the new URL. Since we use SEQUENCE generator, Hibernate will fetch the next ID
-        // from the database sequence and populate the ID on newURL, but it won't execute the SQL INSERT yet.
-        urlRepository.save(newURL);
-
-        // 2. Encode the generated ID using Sqids
         String shortCode = SQIDS.encode(List.of(newURL.getId()));
-
-        // 3. Set the generated shortCode. Hibernate will write this value in the single SQL INSERT statement.
         newURL.setShortCode(shortCode);
 
-        return newURL;
+        return urlRepository.save(newURL);
     }
 
     public void deleteById(Long id) {
@@ -170,6 +169,4 @@ class URLService {
     public List<URL> findAll() {
         return urlRepository.findAll();
     }
-
-
 }

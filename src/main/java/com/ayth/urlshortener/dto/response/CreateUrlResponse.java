@@ -17,4 +17,5 @@ public class CreateUrlResponse {
     private Instant expiresAt;
     private Long clickCount;
     private Long id;
+    private String createdBy;
 }

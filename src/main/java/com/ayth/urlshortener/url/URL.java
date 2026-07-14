@@ -27,7 +27,7 @@ public class URL {
     @Column(nullable = false, length = 2048)
     private String originalUrl;
 
-    @Column(nullable = false, unique = true, length = 20)
+    @Column(unique = true, length = 20)
     private String shortCode;
 
     @Column(nullable = false, updatable = false)
@@ -51,6 +51,6 @@ public class URL {
     }
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = true)
+    @JoinColumn(name = "user_id", nullable = false)
     private User user;
 }

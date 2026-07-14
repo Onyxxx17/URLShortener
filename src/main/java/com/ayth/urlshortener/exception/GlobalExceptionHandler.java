@@ -5,6 +5,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -13,8 +14,13 @@ import org.springframework.web.context.request.WebRequest;
 
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @RestControllerAdvice
 class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<ErrorResponse> handleInvalidCredentials(
@@ -38,16 +44,19 @@ class GlobalExceptionHandler {
             UnauthorizedException ex,
             WebRequest request
     ) {
-
         ErrorResponse body = ErrorResponse.of(
-                401,
-                "Unauthorized",
-                ex.getMessage(),
-                getPath(request)
-        );
+                401, "Unauthorized", ex.getMessage(), getPath(request));
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
+    }
 
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(body);
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    public ResponseEntity<ErrorResponse> handleEmailNotVerified(
+            EmailNotVerifiedException ex,
+            WebRequest request
+    ) {
+        ErrorResponse body = ErrorResponse.of(
+                403, "Forbidden", ex.getMessage(), getPath(request));
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
     }
 
     @ExceptionHandler(UserAlreadyExistsException.class)
@@ -125,11 +134,21 @@ class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
+    // ---- 403: Access denied (method security or role check failed) ----
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex, WebRequest request) {
+        ErrorResponse body = ErrorResponse.of(
+                403, "Forbidden", "You do not have permission to perform this action", getPath(request));
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
     // ---- 500: Catch-all for anything unexpected ----
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneric(Exception ex, WebRequest request) {
+        // Log the real exception so it's visible in the server console
+        log.error("[500] Unexpected error on {}: {}", getPath(request), ex.getMessage(), ex);
         ErrorResponse body = ErrorResponse.of(
-                500, "Internal Server Error", "An unexpected error occurred", getPath(request));
+                500, "Internal Server Error", ex.getClass().getSimpleName() + ": " + ex.getMessage(), getPath(request));
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 

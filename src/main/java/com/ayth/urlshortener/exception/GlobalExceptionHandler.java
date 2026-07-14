@@ -16,6 +16,41 @@ import java.util.List;
 @RestControllerAdvice
 class GlobalExceptionHandler {
 
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidCredentials(
+            InvalidCredentialsException ex,
+            WebRequest request
+    ) {
+
+        ErrorResponse body = ErrorResponse.of(
+                401,
+                "Unauthorized",
+                ex.getMessage(),
+                getPath(request)
+        );
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(body);
+    }
+
+    @ExceptionHandler(UserAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleUserAlreadyExists(
+            UserAlreadyExistsException ex,
+            WebRequest request
+    ) {
+
+        ErrorResponse body = ErrorResponse.of(
+                409,
+                "Conflict",
+                ex.getMessage(),
+                getPath(request)
+        );
+
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(body);
+    }
+
+
     // ---- 404: URL not found ----
     @ExceptionHandler(UrlNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleUrlNotFound(UrlNotFoundException ex, WebRequest request) {

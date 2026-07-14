@@ -1,5 +1,6 @@
 package com.ayth.urlshortener.url;
 
+import com.ayth.urlshortener.users.User;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -39,9 +40,13 @@ public class URL {
 
     @Column
     private Instant updatedAt;
-    
+
     @PrePersist
     public void prePersist() {
         this.createdAt = Instant.now();
     }
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = true)
+    private User user;
 }

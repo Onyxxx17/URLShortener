@@ -12,11 +12,9 @@ import org.springframework.stereotype.Service;
 import javax.crypto.SecretKey;
 import java.util.Date;
 
-/**
- * Handles JWT generation and validation.
- *
- * <p>Tokens are signed with HS256 and embed the user's UUID and email as
- * claims. The secret and expiry are read from {@code application.properties}.
+/*
+Tokens are signed with HS256 and embed the user's UUID and email as
+claims. The secret and expiry are read from {@code application.properties}.
  */
 @Service
 public class JwtService {

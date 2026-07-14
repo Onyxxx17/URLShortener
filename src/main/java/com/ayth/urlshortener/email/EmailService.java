@@ -41,8 +41,11 @@ public class EmailService {
      */
     @Async
     public void sendVerificationEmail(String toEmail, String token) {
+        log.debug("[MAIL] Preparing to send verification email to {}", toEmail);
         String link = baseUrl + "/verify-email?token=" + token;
         String subject = "Verify your email - URL Shortener";
+        
+        log.debug("[MAIL] Building HTML for verification email to {}", toEmail);
         String html = buildVerificationHtml(toEmail, link);
 
         sendHtml(toEmail, subject, html);
@@ -53,14 +56,18 @@ public class EmailService {
 
     private void sendHtml(String to, String subject, String html) {
         try {
+            log.debug("[MAIL] Creating MimeMessage for {}", to);
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
             helper.setFrom(fromEmail);
             helper.setTo(to);
             helper.setSubject(subject);
             helper.setText(html, true);   // true = isHtml
+            
+            log.debug("[MAIL] Executing mailSender.send() for {}", to);
             mailSender.send(message);
-        } catch (MessagingException ex) {
+            log.debug("[MAIL] Successfully executed mailSender.send() for {}", to);
+        } catch (Exception ex) {
             log.error("[MAIL] Failed to send email to {}: {}", to, ex.getMessage(), ex);
             throw new RuntimeException("Failed to send verification email. Please try again later.", ex);
         }

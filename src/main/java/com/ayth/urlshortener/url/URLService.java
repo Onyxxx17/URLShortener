@@ -112,32 +112,26 @@ class URLService {
 
     @Transactional
     public URL createUrl(String originalUrl, User user) {
-        // Auth guard is handled by @PreAuthorize("isAuthenticated()") in the
-        // controller — if we reach here the user is always non-null.
-
-        URL newURL = new URL();
-
-        // Get next sequence ID
-        Long id = urlRepository.getNextId();
-        if (id == null) {
-            throw new RuntimeException("Failed to generate ID from sequence");
-        }
-
-        newURL.setId(id);
-        newURL.setOriginalUrl(originalUrl);
-        newURL.setExpiresAt(Instant.now().plus(7, ChronoUnit.DAYS));
-        newURL.setClickCount(0);
-        newURL.setUser(user);
-
         // Check for duplicate URL per user
         Optional<URL> optional = urlRepository.findByUserAndOriginalUrl(user, originalUrl);
         if (optional.isPresent()) {
             throw new UrlAlreadyExistsException("URL already exists");
         }
 
+        URL newURL = new URL();
+        newURL.setOriginalUrl(originalUrl);
+        newURL.setExpiresAt(Instant.now().plus(7, ChronoUnit.DAYS));
+        newURL.setClickCount(0);
+        newURL.setUser(user);
+
+        // 1. Save FIRST so Hibernate natively generates and assigns the ID (INSERT)
+        newURL = urlRepository.save(newURL);
+
+        // 2. Generate the shortCode using the new DB-assigned ID
         String shortCode = SQIDS.encode(List.of(newURL.getId()));
         newURL.setShortCode(shortCode);
 
+        // 3. Save again to persist the shortCode (UPDATE)
         return urlRepository.save(newURL);
     }
 

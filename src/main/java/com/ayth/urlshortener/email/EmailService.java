@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 /**
@@ -38,6 +39,7 @@ public class EmailService {
      * @param toEmail recipient's email address
      * @param token   the raw UUID token value (not URL-encoded — UUIDs are safe)
      */
+    @Async
     public void sendVerificationEmail(String toEmail, String token) {
         String link = baseUrl + "/verify-email?token=" + token;
         String subject = "Verify your email - URL Shortener";

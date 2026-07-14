@@ -14,6 +14,4 @@ interface URLRepository extends JpaRepository<URL, Long> {
     void deleteByOriginalUrl(String originalURL);
     Optional<URL> findByUserAndOriginalUrl(User user, String originalUrl);
 
-    @Query(value = "SELECT nextval('url_id_seq')", nativeQuery = true)
-    Long getNextId();
 }

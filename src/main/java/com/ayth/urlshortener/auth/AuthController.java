@@ -43,4 +43,13 @@ class AuthController {
                 .message("Email verified successfully. You can now log in.")
                 .build();
     }
+
+    /**
+     * Invalidates all existing verification tokens and sends a fresh one.
+     * POST /resend-verification?email=user@example.com
+     */
+    @PostMapping("/resend-verification")
+    public AuthResponse resendVerification(@RequestParam String email) {
+        return authService.resendVerificationEmail(email);
+    }
 }

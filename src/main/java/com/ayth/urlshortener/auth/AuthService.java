@@ -3,6 +3,7 @@ package com.ayth.urlshortener.auth;
 import com.ayth.urlshortener.dto.request.LoginRequest;
 import com.ayth.urlshortener.dto.request.RegisterRequest;
 import com.ayth.urlshortener.dto.response.AuthResponse;
+import com.ayth.urlshortener.email.EmailService;
 import com.ayth.urlshortener.email.EmailVerificationToken;
 import com.ayth.urlshortener.email.EmailVerificationTokenRepository;
 import com.ayth.urlshortener.exception.EmailNotVerifiedException;
@@ -11,6 +12,8 @@ import com.ayth.urlshortener.exception.UserAlreadyExistsException;
 import com.ayth.urlshortener.users.User;
 import com.ayth.urlshortener.users.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -27,8 +30,11 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AuthService {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
+
     private final UserRepository userRepository;
     private final EmailVerificationTokenRepository tokenRepository;
+    private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
@@ -92,6 +98,38 @@ public class AuthService {
 
     // ── Email verification ────────────────────────────────────────────────────
 
+    /**
+     * Invalidates all existing verification tokens for the given email and
+     * sends a fresh one. Silently succeeds even if the email doesn't exist
+     * (to prevent user-enumeration attacks).
+     */
+    @Transactional
+    public AuthResponse resendVerificationEmail(String email) {
+        User user = userRepository.findByEmail(email).orElse(null);
+
+        if (user == null) {
+            // Return a generic message to avoid revealing whether the email exists
+            return AuthResponse.builder()
+                    .message("If that email is registered and unverified, a new link has been sent.")
+                    .build();
+        }
+
+        if (user.isEmailVerified()) {
+            return AuthResponse.builder()
+                    .message("Your email is already verified. You can log in.")
+                    .build();
+        }
+
+        // Delete ALL existing tokens for this user before issuing a new one
+        tokenRepository.deleteAllByUser(user);
+
+        sendVerificationEmail(user);
+
+        return AuthResponse.builder()
+                .message("Verification email resent. Please check your inbox.")
+                .build();
+    }
+
     @Transactional
     public void verifyEmail(String rawToken) {
         UUID tokenUuid;
@@ -123,8 +161,8 @@ public class AuthService {
     // ── Private helpers ───────────────────────────────────────────────────────
 
     /**
-     * Creates a 24-hour verification token and "sends" it.
-     * Currently logs to console — wire up Spring Mail here later.
+     * Creates a 24-hour verification token and emails it to the user.
+     * Configure {@code spring.mail.*} in {@code application.properties}.
      */
     private void sendVerificationEmail(User user) {
         EmailVerificationToken verificationToken = new EmailVerificationToken();
@@ -133,13 +171,9 @@ public class AuthService {
         verificationToken.setExpiresAt(Instant.now().plus(24, ChronoUnit.HOURS));
         tokenRepository.save(verificationToken);
 
-        // TODO: replace with actual email sending (e.g. Spring Mail / SendGrid)
-        System.out.printf(
-                "%n[EMAIL VERIFICATION] To: %s%n" +
-                "Verify your account: GET /verify-email?token=%s%n%n",
-                user.getEmail(),
-                verificationToken.getToken()
-        );
+        String token = verificationToken.getToken().toString();
+        log.debug("[EMAIL] Verification token for {}: {}", user.getEmail(), token);
+        emailService.sendVerificationEmail(user.getEmail(), token);
     }
 
     private AuthResponse.UserDto toUserDto(User user) {

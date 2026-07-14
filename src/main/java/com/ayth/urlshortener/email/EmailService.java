@@ -33,8 +33,6 @@ public class EmailService {
     // ── Public API ────────────────────────────────────────────────────────────
 
     /**
-     * Sends a verification email containing a clickable link to
-     * {@code GET /verify-email?token=<token>}.
      *
      * @param toEmail recipient's email address
      * @param token   the raw UUID token value (not URL-encoded — UUIDs are safe)

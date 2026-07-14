@@ -97,12 +97,6 @@ public class AuthService {
     }
 
     // ── Email verification ────────────────────────────────────────────────────
-
-    /**
-     * Invalidates all existing verification tokens for the given email and
-     * sends a fresh one. Silently succeeds even if the email doesn't exist
-     * (to prevent user-enumeration attacks).
-     */
     @Transactional
     public AuthResponse resendVerificationEmail(String email) {
         User user = userRepository.findByEmail(email).orElse(null);

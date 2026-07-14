@@ -19,10 +19,4 @@ public class CreateUrlRequest {
     @URL(message = "Must be a valid URL")
     @Size(max = 2048, message = "URL must not exceed 2048 characters")
     private String originalUrl;
-
-//    @Size(min = 3, max = 20, message = "Custom alias must be between 3 and 20 characters")
-//    @Pattern(regexp = "^[a-zA-Z0-9_-]+$", message = "Custom alias may only contain letters, numbers, hyphens, and underscores")
-//    private String customAlias;
-
-//    private Instant expiresAt;
 }

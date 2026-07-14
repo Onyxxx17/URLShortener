@@ -17,16 +17,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
-/**
- * Reads the {@code Authorization: Bearer <token>} header on every request,
- * validates the JWT via {@link JwtService}, and if valid populates the
- * {@link SecurityContextHolder} with the authenticated user.
- *
- * <p>Downstream controllers can then safely call
- * {@code SecurityContextHolder.getContext().getAuthentication().getPrincipal()}
- * or receive the {@link org.springframework.security.core.Authentication}
- * directly as a method parameter.
- */
+
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -56,7 +47,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             // Only proceed if the token is valid and the context is not already set
-            // (guards against double-processing on forwarded requests).
             if (jwtService.isTokenValid(token)
                     && SecurityContextHolder.getContext().getAuthentication() == null) {
 

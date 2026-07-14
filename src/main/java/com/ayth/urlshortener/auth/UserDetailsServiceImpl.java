@@ -8,11 +8,6 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-/**
- * Plugs the application's {@link User} entity into Spring Security's
- * authentication pipeline. Spring Security calls {@link #loadUserByUsername}
- * (passing the email) during {@code AuthenticationManager.authenticate()}.
- */
 @Service
 @RequiredArgsConstructor
 public class UserDetailsServiceImpl implements UserDetailsService {

@@ -8,12 +8,6 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Collection;
 import java.util.List;
 
-/**
- * Wraps the {@link User} entity as a Spring Security {@link UserDetails}.
- * Stored inside the {@link org.springframework.security.core.Authentication}
- * set in the {@link org.springframework.security.core.context.SecurityContext}
- * by {@link JwtAuthenticationFilter} on every authenticated request.
- */
 public class UserPrincipal implements UserDetails {
 
     private final User user;

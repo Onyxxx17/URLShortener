@@ -12,8 +12,12 @@ import java.time.Instant;
 @Entity
 @Table(name = "url", indexes = {
     @Index(name = "idx_short_code", columnList = "shortCode", unique = true),
-    @Index(name = "idx_original_url", columnList = "originalUrl")
-})
+    @Index(name = "idx_original_url", columnList = "originalUrl")},
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        columnNames = {"user_id", "original_url"}
+                )
+        })
 public class URL {
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "url_id_generator")

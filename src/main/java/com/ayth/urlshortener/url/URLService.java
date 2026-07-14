@@ -5,6 +5,9 @@ import com.ayth.urlshortener.dto.response.StatsResponse;
 import com.ayth.urlshortener.exception.UrlAlreadyExistsException;
 import com.ayth.urlshortener.exception.UrlExpiredException;
 import com.ayth.urlshortener.exception.UrlNotFoundException;
+import com.ayth.urlshortener.users.User;
+import com.ayth.urlshortener.users.UserRepository;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,13 +24,15 @@ class URLService {
 
     private static final Sqids SQIDS = Sqids.builder().minLength(7).build();
 
+    private final UserRepository userRepository;
     private final URLRepository urlRepository;
     private final URLClickTracker urlClickTracker;
 
     @Autowired
-    public URLService(URLRepository urlRepository, URLClickTracker urlClickTracker) {
+    URLService(URLRepository urlRepository, URLClickTracker urlClickTracker, UserRepository userRepository) {
         this.urlRepository = urlRepository;
         this.urlClickTracker = urlClickTracker;
+        this.userRepository = userRepository;
     }
 
     public URL findByShortURL(String shortURL) {
@@ -85,8 +90,8 @@ class URLService {
                 .build();
     }
 
-    public CreateUrlResponse createUrlWithResponse(String originalUrl, String baseUrl) {
-        URL newURL = this.createUrl(originalUrl);
+    public CreateUrlResponse createUrlWithResponse(String originalUrl, String baseUrl, HttpSession session) {
+        URL newURL = this.createUrl(originalUrl,session);
         String fullShortUrl = baseUrl + "/" + newURL.getShortCode();
 
         return CreateUrlResponse.builder()
@@ -97,20 +102,32 @@ class URLService {
                 .createdAt(newURL.getCreatedAt())
                 .expiresAt(newURL.getExpiresAt())
                 .clickCount(newURL.getClickCount())
+                .createdBy(newURL.getUser().getEmail())
                 .build();
     }
 
     @Transactional
-    public URL createUrl(String originalUrl) {
+    public URL createUrl(String originalUrl, HttpSession session) {
+
+        Long userId = (Long) session.getAttribute("userId");
+        URL newURL = new URL();
+
+        newURL.setOriginalUrl(originalUrl);
+        newURL.setExpiresAt(Instant.now().plus(7, ChronoUnit.DAYS));
+        newURL.setClickCount(0);
+
+        if (userId != null) {
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() ->
+                            new RuntimeException("User not found"));
+
+            newURL.setUser(user);
+        }
+
         Optional<URL> optional = urlRepository.findByOriginalUrl(originalUrl);
         if(optional.isPresent()) {
             throw new UrlAlreadyExistsException("URL already exists");
         }
-
-        URL newURL = new URL();
-        newURL.setOriginalUrl(originalUrl);
-        newURL.setExpiresAt(Instant.now().plus(7, ChronoUnit.DAYS));
-        newURL.setClickCount(0);
 
         // 1. Save the new URL. Since we use SEQUENCE generator, Hibernate will fetch the next ID
         // from the database sequence and populate the ID on newURL, but it won't execute the SQL INSERT yet.

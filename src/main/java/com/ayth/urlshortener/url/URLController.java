@@ -4,6 +4,7 @@ import com.ayth.urlshortener.dto.request.CreateUrlRequest;
 import com.ayth.urlshortener.dto.response.CreateUrlResponse;
 import com.ayth.urlshortener.dto.response.StatsResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -34,7 +35,8 @@ class URLController {
     @PostMapping("/create")
     public ResponseEntity<CreateUrlResponse> createURL(
             @Valid @RequestBody CreateUrlRequest createUrlRequest,
-            HttpServletRequest request) {
+            HttpServletRequest request,
+            HttpSession session) {
 
         // Build base URL from request
         String baseUrl = request.getScheme() + "://" + 
@@ -45,7 +47,7 @@ class URLController {
 
         CreateUrlResponse response = urlService.createUrlWithResponse(
             createUrlRequest.getOriginalUrl(), 
-            baseUrl
+            baseUrl, session
         );
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);

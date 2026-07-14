@@ -19,12 +19,13 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/login",
                                 "/register",
-                                "/create",
-                                "/{shortCode}"
+                                "/{shortCode}",
+                                "/api-docs",
+                                "/swagger-ui.html"
                         )
                         .permitAll()
                         .anyRequest()
-                        .permitAll());
+                        .authenticated());
 
         return http.build();
     }

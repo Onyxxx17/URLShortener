@@ -24,5 +24,5 @@ public class CreateUrlRequest {
 //    @Pattern(regexp = "^[a-zA-Z0-9_-]+$", message = "Custom alias may only contain letters, numbers, hyphens, and underscores")
 //    private String customAlias;
 
-    private Instant expiresAt;
+//    private Instant expiresAt;
 }

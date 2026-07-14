@@ -33,6 +33,23 @@ class GlobalExceptionHandler {
                 .body(body);
     }
 
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<ErrorResponse> handleUnauthorized(
+            UnauthorizedException ex,
+            WebRequest request
+    ) {
+
+        ErrorResponse body = ErrorResponse.of(
+                401,
+                "Unauthorized",
+                ex.getMessage(),
+                getPath(request)
+        );
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(body);
+    }
+
     @ExceptionHandler(UserAlreadyExistsException.class)
     public ResponseEntity<ErrorResponse> handleUserAlreadyExists(
             UserAlreadyExistsException ex,

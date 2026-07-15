@@ -39,7 +39,6 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
 
-    // ── Register ─────────────────────────────────────────────────────────────
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -64,7 +63,6 @@ public class AuthService {
                 .build();
     }
 
-    // ── Login ─────────────────────────────────────────────────────────────────
 
     public AuthResponse login(LoginRequest request) {
         Authentication authentication;
@@ -96,7 +94,6 @@ public class AuthService {
                 .build();
     }
 
-    // ── Email verification ────────────────────────────────────────────────────
     @Transactional
     public AuthResponse resendVerificationEmail(String email) {
         User user = userRepository.findByEmail(email).orElse(null);
@@ -152,7 +149,6 @@ public class AuthService {
         tokenRepository.save(verificationToken);
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
 
     /**
      * Creates a 24-hour verification token and emails it to the user.

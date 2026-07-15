@@ -11,11 +11,6 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-/**
- * Sends transactional emails via the configured SMTP server (Gmail by default).
- * Configure {@code spring.mail.*} and {@code app.base-url} in
- * {@code application.properties} before use.
- */
 @Service
 @RequiredArgsConstructor
 public class EmailService {
@@ -32,11 +27,6 @@ public class EmailService {
 
     // ── Public API ────────────────────────────────────────────────────────────
 
-    /**
-     *
-     * @param toEmail recipient's email address
-     * @param token   the raw UUID token value (not URL-encoded — UUIDs are safe)
-     */
     @Async
     public void sendVerificationEmail(String toEmail, String token) {
         log.debug("[MAIL] Preparing to send verification email to {}", toEmail);
@@ -74,78 +64,43 @@ public class EmailService {
     private String buildVerificationHtml(String email, String verificationLink) {
         return """
                 <!DOCTYPE html>
-                <html lang="en">
+                <html>
                 <head>
-                  <meta charset="UTF-8"/>
-                  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-                  <title>Verify your email</title>
+                    <meta charset="utf-8">
+                    <title>Verify your email</title>
                 </head>
-                <body style="margin:0;padding:0;background:#f4f4f5;font-family:Inter,Arial,sans-serif;">
-                  <table width="100%%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 0;">
-                    <tr>
-                      <td align="center">
-                        <table width="520" cellpadding="0" cellspacing="0"
-                               style="background:#ffffff;border-radius:12px;overflow:hidden;
-                                      box-shadow:0 4px 24px rgba(0,0,0,0.08);">
-
-                          <!-- Header -->
-                          <tr>
-                            <td style="background:linear-gradient(135deg,#6366f1,#8b5cf6);
-                                       padding:36px 40px;text-align:center;">
-                              <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:700;
-                                         letter-spacing:-0.3px;">🔗 URL Shortener</h1>
+                <body style="margin: 0; padding: 0; background-color: #f4f7fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #333333;">
+                    <table border="0" cellpadding="0" cellspacing="0" width="100%%" style="table-layout: fixed; background-color: #f4f7fa; margin: 0 auto;">
+                        <tr>
+                            <td align="center" style="padding: 40px 10px;">
+                                <table border="0" cellpadding="0" cellspacing="0" width="100%%" style="max-width: 500px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);">
+                                    <tr>
+                                        <td align="center" style="padding: 40px 30px 30px;">
+                                            <div style="width: 50px; height: 50px; background-color: #eef2ff; border-radius: 50%%; display: inline-block; margin-bottom: 20px;">
+                                                <h2 style="margin: 0; color: #4f46e5; line-height: 50px; font-size: 24px;">🔗</h2>
+                                            </div>
+                                            <h1 style="margin: 0 0 15px; font-size: 24px; font-weight: 700; color: #111827; letter-spacing: -0.5px;">Verify your email address</h1>
+                                            <p style="margin: 0 0 25px; font-size: 16px; line-height: 1.6; color: #4b5563;">
+                                                Welcome to <strong>URL Shortener</strong>! Please confirm that you want to use <strong>%s</strong> as your account email address.
+                                            </p>
+                                            <a href="%s" style="display: inline-block; padding: 14px 32px; background-color: #4f46e5; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; border-radius: 6px; box-shadow: 0 2px 4px rgba(79, 70, 229, 0.3);">Verify Email</a>
+                                            <p style="margin: 25px 0 0; font-size: 14px; line-height: 1.5; color: #6b7280;">
+                                                Or copy and paste this link into your browser:<br>
+                                                <a href="%s" style="color: #4f46e5; text-decoration: none; word-break: break-all;">%s</a>
+                                            </p>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td align="center" style="padding: 25px 30px; background-color: #f9fafb; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; border-top: 1px solid #f3f4f6;">
+                                            <p style="margin: 0; font-size: 12px; color: #9ca3af; line-height: 1.5;">
+                                                If you did not create an account, you can safely ignore this email.
+                                            </p>
+                                        </td>
+                                    </tr>
+                                </table>
                             </td>
-                          </tr>
-
-                          <!-- Body -->
-                          <tr>
-                            <td style="padding:40px;">
-                              <h2 style="margin:0 0 12px;color:#111827;font-size:20px;font-weight:600;">
-                                Verify your email address
-                              </h2>
-                              <p style="margin:0 0 24px;color:#6b7280;font-size:15px;line-height:1.6;">
-                                Thanks for signing up! Click the button below to confirm
-                                <strong>%s</strong> and activate your account.
-                                This link expires in <strong>24 hours</strong>.
-                              </p>
-
-                              <!-- CTA Button -->
-                              <table cellpadding="0" cellspacing="0">
-                                <tr>
-                                  <td style="border-radius:8px;
-                                             background:linear-gradient(135deg,#6366f1,#8b5cf6);">
-                                    <a href="%s"
-                                       style="display:inline-block;padding:14px 32px;
-                                              color:#ffffff;text-decoration:none;
-                                              font-size:15px;font-weight:600;
-                                              letter-spacing:0.2px;">
-                                      Verify Email
-                                    </a>
-                                  </td>
-                                </tr>
-                              </table>
-
-                              <p style="margin:24px 0 0;color:#9ca3af;font-size:13px;line-height:1.5;">
-                                Or copy this link into your browser:<br/>
-                                <a href="%s" style="color:#6366f1;word-break:break-all;">%s</a>
-                              </p>
-                            </td>
-                          </tr>
-
-                          <!-- Footer -->
-                          <tr>
-                            <td style="background:#f9fafb;padding:20px 40px;
-                                       border-top:1px solid #e5e7eb;text-align:center;">
-                              <p style="margin:0;color:#9ca3af;font-size:12px;">
-                                If you didn't create an account, you can safely ignore this email.
-                              </p>
-                            </td>
-                          </tr>
-
-                        </table>
-                      </td>
-                    </tr>
-                  </table>
+                        </tr>
+                    </table>
                 </body>
                 </html>
                 """.formatted(email, verificationLink, verificationLink, verificationLink);

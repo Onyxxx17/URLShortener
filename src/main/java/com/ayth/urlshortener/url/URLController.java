@@ -24,7 +24,6 @@ class URLController {
         this.urlService = urlService;
     }
 
-    /// ========Find By Short Code and Redirect========
     @GetMapping("/{shortCode}")
     public ResponseEntity<Void> getURL(@PathVariable String shortCode) {
         String originalUrl = urlService.getUrlForRedirect(shortCode);
@@ -34,7 +33,6 @@ class URLController {
                .build();
     }
 
-    /// =======Create a new URL mapping=======
     @PostMapping("/create")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<CreateUrlResponse> createURL(
@@ -42,7 +40,7 @@ class URLController {
             HttpServletRequest request,
             Authentication authentication) {
 
-        // Build base URL from request
+        // Build base URL
         String baseUrl = request.getScheme() + "://" +
                         request.getServerName() +
                         (request.getServerPort() != 80 && request.getServerPort() != 443
@@ -63,7 +61,6 @@ class URLController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    /// ========Get URL Statistics========
     @GetMapping("/urls/{shortCode}/stats")
     public ResponseEntity<StatsResponse> getStats(@PathVariable String shortCode) {
         StatsResponse response = urlService.createUrlStatsResponse(shortCode);

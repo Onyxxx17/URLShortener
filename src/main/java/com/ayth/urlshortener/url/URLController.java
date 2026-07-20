@@ -25,8 +25,12 @@ class URLController {
     }
 
     @GetMapping("/{shortCode}")
-    public ResponseEntity<Void> getURL(@PathVariable String shortCode) {
-        String originalUrl = urlService.getUrlForRedirect(shortCode);
+    public ResponseEntity<Void> getURL(
+            @PathVariable String shortCode,
+            @RequestHeader(value = "referer", required = false) String referer,
+            @RequestHeader(value = "User-Agent", required = false) String userAgent
+    ) {
+        String originalUrl = urlService.getUrlForRedirect(shortCode, referer, userAgent);
 
         return ResponseEntity.status(HttpStatus.FOUND)
                .header("Location", originalUrl)

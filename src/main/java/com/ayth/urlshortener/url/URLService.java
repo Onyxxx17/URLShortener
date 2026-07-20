@@ -41,7 +41,7 @@ class URLService {
     }
 
 
-    public String getUrlForRedirect(String shortCode) {
+    public String getUrlForRedirect(String shortCode, String referer, String userAgent) {
         URL url = findByShortURL(shortCode);
 
         if (url.getExpiresAt() != null && url.getExpiresAt().isBefore(Instant.now())) {
@@ -50,7 +50,7 @@ class URLService {
             );
         }
 
-        urlClickTracker.incrementClickCountAndUpdateLastAccessed(shortCode);
+        urlClickTracker.incrementClickCountAndUpdateLastAccessed(shortCode, referer, userAgent);
         return url.getOriginalUrl();
     }
 

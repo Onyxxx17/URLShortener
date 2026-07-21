@@ -139,8 +139,8 @@ class URLService {
      *             {@link org.springframework.security.core.context.SecurityContext}
      *             — no extra DB lookup needed.
      */
-    public CreateUrlResponse createUrlWithResponse(String originalUrl, String baseUrl, User user) {
-        URL newURL = this.createUrl(originalUrl, user);
+    public CreateUrlResponse createUrlWithResponse(String originalUrl, String baseUrl, User user, Integer expiresInDays) {
+        URL newURL = this.createUrl(originalUrl, user, expiresInDays);
         String fullShortUrl = baseUrl + "/" + newURL.getShortCode();
 
         return CreateUrlResponse.builder()
@@ -156,7 +156,7 @@ class URLService {
     }
 
     @Transactional
-    public URL createUrl(String originalUrl, User user) {
+    public URL createUrl(String originalUrl, User user, Integer expiresInDays) {
         Optional<URL> optional = urlRepository.findByUserAndOriginalUrl(user, originalUrl);
         if (optional.isPresent()) {
             throw new UrlAlreadyExistsException("URL already exists");
@@ -164,7 +164,13 @@ class URLService {
 
         URL newURL = new URL();
         newURL.setOriginalUrl(originalUrl);
-        newURL.setExpiresAt(Instant.now().plus(7, ChronoUnit.DAYS));
+        
+        if (expiresInDays != null) {
+            newURL.setExpiresAt(Instant.now().plus(expiresInDays, ChronoUnit.DAYS));
+        } else {
+            newURL.setExpiresAt(null);
+        }
+        
         newURL.setClickCount(0);
         newURL.setUser(user);
 

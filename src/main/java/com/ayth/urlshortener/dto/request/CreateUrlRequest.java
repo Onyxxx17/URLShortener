@@ -1,14 +1,9 @@
 package com.ayth.urlshortener.dto.request;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.validator.constraints.URL;
-
-import java.time.Instant;
 
 @Getter
 @Setter
@@ -19,4 +14,8 @@ public class CreateUrlRequest {
     @URL(message = "Must be a valid URL")
     @Size(max = 2048, message = "URL must not exceed 2048 characters")
     private String originalUrl;
+
+    @Min(value = 1, message = "Expiry must be at least 1 day")
+    @Max(value = 365, message = "Expiry must not exceed 365 days")
+    private Integer expiresInDays;
 }

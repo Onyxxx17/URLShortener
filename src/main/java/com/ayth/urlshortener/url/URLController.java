@@ -59,7 +59,8 @@ class URLController {
         CreateUrlResponse response = urlService.createUrlWithResponse(
             createUrlRequest.getOriginalUrl(),
             baseUrl,
-            user
+            user,
+            createUrlRequest.getExpiresInDays()
         );
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);

@@ -7,7 +7,10 @@ import com.ayth.urlshortener.exception.UrlExpiredException;
 import com.ayth.urlshortener.exception.UrlNotFoundException;
 import com.ayth.urlshortener.users.User;
 import com.ayth.urlshortener.users.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.sqids.Sqids;
@@ -21,37 +24,69 @@ import java.util.Optional;
 @Service
 class URLService {
 
+    private static final Logger log = LoggerFactory.getLogger(URLService.class);
     private static final Sqids SQIDS = Sqids.builder().minLength(7).build();
+    private static final String CACHE_PREFIX = "url:redirect:";
+    private static final Duration DEFAULT_TTL = Duration.ofHours(24);
 
     private final UserRepository userRepository;
     private final URLRepository urlRepository;
     private final URLClickTracker urlClickTracker;
+    private final URLClickEventRepository urlClickEventRepository;
+    private final StringRedisTemplate redisTemplate;
 
     @Autowired
-    URLService(URLRepository urlRepository, URLClickTracker urlClickTracker, UserRepository userRepository) {
+    URLService(URLRepository urlRepository, URLClickTracker urlClickTracker,
+               UserRepository userRepository, URLClickEventRepository urlClickEventRepository,
+               StringRedisTemplate redisTemplate) {
         this.urlRepository = urlRepository;
         this.urlClickTracker = urlClickTracker;
         this.userRepository = userRepository;
+        this.urlClickEventRepository = urlClickEventRepository;
+        this.redisTemplate = redisTemplate;
     }
-
-    public URL findByShortURL(String shortURL) {
-        //Find with redis first (Implement later)
-        Optional<URL> optional = urlRepository.findByShortCode(shortURL);
-        return optional.orElseThrow(() -> new UrlNotFoundException("Url with short code " + shortURL + " not found"));
-    }
-
 
     public String getUrlForRedirect(String shortCode, String referer, String userAgent) {
+        // 1. Try Redis cache first
+        String cached = redisTemplate.opsForValue().get(CACHE_PREFIX + shortCode);
+
+        if (cached != null) {
+            log.debug("[CACHE] HIT for shortCode: {}", shortCode);
+            String[] parts = cached.split("\\|", 2);
+            String originalUrl = parts[0];
+            String expiresAtStr = parts.length > 1 ? parts[1] : null;
+
+            // Check expiry from cached data — no DB hit needed
+            if (expiresAtStr != null && !expiresAtStr.equals("null")) {
+                Instant expiresAt = Instant.parse(expiresAtStr);
+                if (expiresAt.isBefore(Instant.now())) {
+                    evictCache(shortCode);
+                    throw new UrlExpiredException("This short URL has expired and is no longer available");
+                }
+            }
+
+            urlClickTracker.incrementClickCountAndUpdateLastAccessed(shortCode, referer, userAgent);
+            return originalUrl;
+        }
+
+        // 2. Cache miss — fall back to Postgres
+        log.debug("[CACHE] MISS for shortCode: {}", shortCode);
         URL url = findByShortURL(shortCode);
 
         if (url.getExpiresAt() != null && url.getExpiresAt().isBefore(Instant.now())) {
-            throw new UrlExpiredException(
-                "This short URL has expired and is no longer available"
-            );
+            throw new UrlExpiredException("This short URL has expired and is no longer available");
         }
+
+        // 3. Populate cache with fixed 24h TTL
+        cacheUrl(shortCode, url.getOriginalUrl(), url.getExpiresAt());
 
         urlClickTracker.incrementClickCountAndUpdateLastAccessed(shortCode, referer, userAgent);
         return url.getOriginalUrl();
+    }
+
+    public URL findByShortURL(String shortURL) {
+        Optional<URL> optional = urlRepository.findByShortCode(shortURL);
+        return optional.orElseThrow(() -> new UrlNotFoundException("Url with short code " + shortURL + " not found"));
     }
 
     public StatsResponse createUrlStatsResponse(String shortCode) {
@@ -75,6 +110,15 @@ class URLService {
         Duration age = Duration.between(url.getCreatedAt(), now);
         Long ageInDays = age.toDays();
 
+        List<URLClickEvent> clickEvents = urlClickEventRepository.findByUrlOrderByClickTimestampDesc(url);
+        List<StatsResponse.ClickEventDto> recentClicks = clickEvents.stream()
+                .map(event -> StatsResponse.ClickEventDto.builder()
+                        .clickedAt(event.getClickTimestamp())
+                        .referer(event.getReferer())
+                        .userAgent(event.getUserAgent())
+                        .build())
+                .toList();
+
         return StatsResponse.builder()
                 .id(url.getId())
                 .shortCode(url.getShortCode())
@@ -86,6 +130,7 @@ class URLService {
                 .daysUntilExpiry(daysUntilExpiry)
                 .isExpired(isExpired)
                 .ageInDays(ageInDays)
+                .recentClicks(recentClicks)
                 .build();
     }
 
@@ -112,7 +157,6 @@ class URLService {
 
     @Transactional
     public URL createUrl(String originalUrl, User user) {
-        // Check for duplicate URL per user
         Optional<URL> optional = urlRepository.findByUserAndOriginalUrl(user, originalUrl);
         if (optional.isPresent()) {
             throw new UrlAlreadyExistsException("URL already exists");
@@ -124,43 +168,57 @@ class URLService {
         newURL.setClickCount(0);
         newURL.setUser(user);
 
-        // 1. Save FIRST so Hibernate natively generates and assigns the ID (INSERT)
         newURL = urlRepository.save(newURL);
 
-        // 2. Generate the shortCode using the new DB-assigned ID
         String shortCode = SQIDS.encode(List.of(newURL.getId()));
         newURL.setShortCode(shortCode);
 
-        // 3. Save again to persist the shortCode (UPDATE)
-        return urlRepository.save(newURL);
+        newURL = urlRepository.save(newURL);
+
+        // Pre-warm cache so first redirect is instant
+        cacheUrl(newURL.getShortCode(), newURL.getOriginalUrl(), newURL.getExpiresAt());
+        log.debug("[CACHE] Pre-warmed cache for shortCode: {}", newURL.getShortCode());
+
+        return newURL;
     }
 
     public void deleteById(Long id) {
-        Optional<URL> optional = urlRepository.findById(id);
-        if(optional.isEmpty()){
-            throw new UrlNotFoundException("URL does not exist");
-        }
+        URL url = urlRepository.findById(id)
+                .orElseThrow(() -> new UrlNotFoundException("URL does not exist"));
+        evictCache(url.getShortCode());
         urlRepository.deleteById(id);
     }
 
+    @Transactional
     public void deleteByShortCode(String shortCode) {
-        Optional<URL> optional = urlRepository.findByShortCode(shortCode);
-        if(optional.isPresent()) {
-            urlRepository.deleteByShortCode(shortCode);
-        } else{
+        if (!urlRepository.findByShortCode(shortCode).isPresent()) {
             throw new UrlNotFoundException("URL does not exist");
         }
+        evictCache(shortCode);
+        urlRepository.deleteByShortCode(shortCode);
     }
 
+    @Transactional
     public void deleteByOriginalURL(String originalURL) {
-        Optional<URL> optional = urlRepository.findByOriginalUrl(originalURL);
-        if(optional.isEmpty()){
-            throw new UrlNotFoundException("URL does not exist");
-        }
+        URL url = urlRepository.findByOriginalUrl(originalURL)
+                .orElseThrow(() -> new UrlNotFoundException("URL does not exist"));
+        evictCache(url.getShortCode());
         urlRepository.deleteByOriginalUrl(originalURL);
     }
 
     public List<URL> findAll() {
         return urlRepository.findAll();
+    }
+
+    // ── Cache helpers ─────────────────────────────────────────────────────────
+
+    private void cacheUrl(String shortCode, String originalUrl, Instant expiresAt) {
+        String value = originalUrl + "|" + expiresAt;
+        redisTemplate.opsForValue().set(CACHE_PREFIX + shortCode, value, DEFAULT_TTL);
+    }
+
+    private void evictCache(String shortCode) {
+        Boolean deleted = redisTemplate.delete(CACHE_PREFIX + shortCode);
+        log.debug("[CACHE] Evicted shortCode: {} (existed: {})", shortCode, deleted);
     }
 }

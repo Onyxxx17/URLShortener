@@ -5,7 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.time.Instant;
-import java.time.Duration;
+import java.util.List;
 
 @Getter
 @Setter
@@ -21,4 +21,13 @@ public class StatsResponse {
     private Long daysUntilExpiry;
     private Boolean isExpired;
     private Long ageInDays;
+    private List<ClickEventDto> recentClicks;
+
+    @Getter
+    @Builder
+    public static class ClickEventDto {
+        private Instant clickedAt;
+        private String referer;
+        private String userAgent;
+    }
 }

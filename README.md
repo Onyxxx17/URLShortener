@@ -38,8 +38,8 @@ A high-throughput, fully-featured URL shortening REST API built with Java and Sp
 
 ## API Endpoints Overview
 
-- `POST /auth/register` - Register a new user
-- `POST /auth/login` - Authenticate and receive a JWT
+- `POST /register` - Register a new user
+- `POST /login` - Authenticate and receive a JWT
 - `POST /create` - Create a new short URL (Requires JWT)
 - `GET /{shortCode}` - Redirect to the original URL
 - `GET /urls/{shortCode}/stats` - View analytics and click events for a specific URL (Requires JWT)

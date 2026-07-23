@@ -17,14 +17,20 @@ import org.springframework.security.core.Authentication;
 import java.io.IOException;
 import org.springframework.web.bind.annotation.*;
 
+import com.ayth.urlshortener.qr.QRCodeService;
+import com.google.zxing.WriterException;
+import org.springframework.http.MediaType;
+
 @RestController
 @RequestMapping("/")
 class URLController {
     private final URLService urlService;
+    private final QRCodeService qrCodeService;
 
     @Autowired
-    public URLController(URLService urlService) {
+    public URLController(URLService urlService, QRCodeService qrCodeService) {
         this.urlService = urlService;
+        this.qrCodeService = qrCodeService;
     }
 
     @GetMapping("/{shortCode:[a-zA-Z0-9]{7,}}")
@@ -36,6 +42,25 @@ class URLController {
     ) throws IOException {
         String originalUrl = urlService.getUrlForRedirect(shortCode, referer, userAgent);
         response.sendRedirect(originalUrl);
+    }
+
+    @GetMapping(value = "/{shortCode:[a-zA-Z0-9]{7,}}/qr", produces = MediaType.IMAGE_PNG_VALUE)
+    public ResponseEntity<byte[]> getQRCode(
+            @PathVariable String shortCode,
+            HttpServletRequest request
+    ) throws WriterException, IOException {
+        // Validate that the short code exists
+        urlService.getOriginalUrl(shortCode);
+
+        String baseUrl = request.getScheme() + "://" +
+                        request.getServerName() +
+                        (request.getServerPort() != 80 && request.getServerPort() != 443
+                            ? ":" + request.getServerPort()
+                            : "");
+        String fullUrl = baseUrl + "/" + shortCode;
+
+        byte[] qrImage = qrCodeService.generateQRCodeImage(fullUrl, 250, 250);
+        return ResponseEntity.ok().contentType(MediaType.IMAGE_PNG).body(qrImage);
     }
 
     @PostMapping("/create")

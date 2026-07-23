@@ -46,8 +46,8 @@ class URLService {
         this.redisTemplate = redisTemplate;
     }
 
-    public String getUrlForRedirect(String shortCode, String referer, String userAgent) {
-        // Try Redis cache first
+    public String getOriginalUrl(String shortCode) {
+        // Redis cache first
         String cached = redisTemplate.opsForValue().get(CACHE_PREFIX + shortCode);
 
         if (cached != null) {
@@ -71,7 +71,6 @@ class URLService {
                 }
             }
 
-            urlClickTracker.incrementClickCountAndUpdateLastAccessed(shortCode, referer, userAgent);
             return originalUrl;
         }
 
@@ -93,8 +92,13 @@ class URLService {
         // Populate cache with fixed 24h TTL
         cacheUrl(shortCode, url.getOriginalUrl(), url.getExpiresAt());
 
-        urlClickTracker.incrementClickCountAndUpdateLastAccessed(shortCode, referer, userAgent);
         return url.getOriginalUrl();
+    }
+
+    public String getUrlForRedirect(String shortCode, String referer, String userAgent) {
+        String originalUrl = getOriginalUrl(shortCode);
+        urlClickTracker.incrementClickCountAndUpdateLastAccessed(shortCode, referer, userAgent);
+        return originalUrl;
     }
 
     public URL findByShortURL(String shortURL) {
@@ -103,28 +107,17 @@ class URLService {
     }
 
     public StatsResponse createUrlStatsResponse(String shortCode) {
-        URL url = this.findByShortURL(shortCode);
-
-        url.setLastAccessedAt(Instant.now());
-        urlRepository.save(url);
-
+        URL url = findByShortURL(shortCode);
         Instant now = Instant.now();
-        Long daysUntilExpiry = null;
-        boolean isExpired = false;
 
-        if (url.getExpiresAt() != null) {
-            isExpired = url.getExpiresAt().isBefore(now);
-            if (!isExpired) {
-                Duration duration = Duration.between(now, url.getExpiresAt());
-                daysUntilExpiry = duration.toDays();
-            }
-        }
+        boolean isExpired = url.getExpiresAt() != null && url.getExpiresAt().isBefore(now);
+        Long daysUntilExpiry = (url.getExpiresAt() != null && !isExpired) 
+                ? ChronoUnit.DAYS.between(now, url.getExpiresAt()) 
+                : null;
+        Long ageInDays = ChronoUnit.DAYS.between(url.getCreatedAt(), now);
 
-        Duration age = Duration.between(url.getCreatedAt(), now);
-        Long ageInDays = age.toDays();
-
-        List<URLClickEvent> clickEvents = urlClickEventRepository.findByUrlOrderByClickTimestampDesc(url);
-        List<StatsResponse.ClickEventDto> recentClicks = clickEvents.stream()
+        List<StatsResponse.ClickEventDto> recentClicks = urlClickEventRepository
+                .findByUrlOrderByClickTimestampDesc(url).stream()
                 .map(event -> StatsResponse.ClickEventDto.builder()
                         .clickedAt(event.getClickTimestamp())
                         .referer(event.getReferer())
@@ -203,20 +196,19 @@ class URLService {
         return newURL;
     }
 
+    @Transactional
     public void deleteById(Long id) {
         URL url = urlRepository.findById(id)
                 .orElseThrow(() -> new UrlNotFoundException("URL does not exist"));
         evictCache(url.getShortCode());
-        urlRepository.deleteById(id);
+        urlRepository.delete(url);
     }
 
     @Transactional
     public void deleteByShortCode(String shortCode) {
-        if (!urlRepository.findByShortCode(shortCode).isPresent()) {
-            throw new UrlNotFoundException("URL does not exist");
-        }
+        URL url = findByShortURL(shortCode);
         evictCache(shortCode);
-        urlRepository.deleteByShortCode(shortCode);
+        urlRepository.delete(url);
     }
 
     @Transactional
@@ -224,7 +216,7 @@ class URLService {
         URL url = urlRepository.findByOriginalUrl(originalURL)
                 .orElseThrow(() -> new UrlNotFoundException("URL does not exist"));
         evictCache(url.getShortCode());
-        urlRepository.deleteByOriginalUrl(originalURL);
+        urlRepository.delete(url);
     }
 
     public List<URL> findAll() {

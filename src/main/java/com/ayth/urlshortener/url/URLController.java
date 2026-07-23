@@ -6,12 +6,15 @@ import com.ayth.urlshortener.dto.response.CreateUrlResponse;
 import com.ayth.urlshortener.dto.response.StatsResponse;
 import com.ayth.urlshortener.users.User;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+
+import java.io.IOException;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -24,17 +27,15 @@ class URLController {
         this.urlService = urlService;
     }
 
-    @GetMapping("/{shortCode}")
-    public ResponseEntity<Void> getURL(
+    @GetMapping("/{shortCode:[a-zA-Z0-9]{7,}}")
+    public void redirect(
             @PathVariable String shortCode,
-            @RequestHeader(value = "referer", required = false) String referer,
-            @RequestHeader(value = "User-Agent", required = false) String userAgent
-    ) {
+            @RequestHeader(value = "Referer", required = false) String referer,
+            @RequestHeader(value = "User-Agent", required = false) String userAgent,
+            HttpServletResponse response
+    ) throws IOException {
         String originalUrl = urlService.getUrlForRedirect(shortCode, referer, userAgent);
-
-        return ResponseEntity.status(HttpStatus.FOUND)
-               .header("Location", originalUrl)
-               .build();
+        response.sendRedirect(originalUrl);
     }
 
     @PostMapping("/create")
@@ -51,8 +52,7 @@ class URLController {
                             ? ":" + request.getServerPort()
                             : "");
 
-        // Retrieve the authenticated user directly from the SecurityContext —
-        // no additional DB call needed since UserPrincipal holds the entity.
+        // Retrieve the authenticated user directly from the SecurityContext
         UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
         User user = principal.getUser();
 

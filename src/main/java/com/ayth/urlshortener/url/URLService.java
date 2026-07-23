@@ -47,11 +47,17 @@ class URLService {
     }
 
     public String getUrlForRedirect(String shortCode, String referer, String userAgent) {
-        // 1. Try Redis cache first
+        // Try Redis cache first
         String cached = redisTemplate.opsForValue().get(CACHE_PREFIX + shortCode);
 
         if (cached != null) {
             log.debug("[CACHE] HIT for shortCode: {}", shortCode);
+            
+            // Negative Caching check
+            if ("NOT_FOUND".equals(cached)) {
+                throw new UrlNotFoundException("Url with short code " + shortCode + " not found");
+            }
+
             String[] parts = cached.split("\\|", 2);
             String originalUrl = parts[0];
             String expiresAtStr = parts.length > 1 ? parts[1] : null;
@@ -69,15 +75,22 @@ class URLService {
             return originalUrl;
         }
 
-        // 2. Cache miss — fall back to Postgres
+        // Cache miss — fall back to Postgres
         log.debug("[CACHE] MISS for shortCode: {}", shortCode);
-        URL url = findByShortURL(shortCode);
+        URL url;
+        try {
+            url = findByShortURL(shortCode);
+        } catch (UrlNotFoundException e) {
+            // Negative Caching
+            redisTemplate.opsForValue().set(CACHE_PREFIX + shortCode, "NOT_FOUND", Duration.ofMinutes(5));
+            throw e;
+        }
 
         if (url.getExpiresAt() != null && url.getExpiresAt().isBefore(Instant.now())) {
             throw new UrlExpiredException("This short URL has expired and is no longer available");
         }
 
-        // 3. Populate cache with fixed 24h TTL
+        // Populate cache with fixed 24h TTL
         cacheUrl(shortCode, url.getOriginalUrl(), url.getExpiresAt());
 
         urlClickTracker.incrementClickCountAndUpdateLastAccessed(shortCode, referer, userAgent);
@@ -134,11 +147,6 @@ class URLService {
                 .build();
     }
 
-    /**
-     * @param user The authenticated {@link User} resolved from the
-     *             {@link org.springframework.security.core.context.SecurityContext}
-     *             — no extra DB lookup needed.
-     */
     public CreateUrlResponse createUrlWithResponse(String originalUrl, String baseUrl, User user, Integer expiresInDays) {
         URL newURL = this.createUrl(originalUrl, user, expiresInDays);
         String fullShortUrl = baseUrl + "/" + newURL.getShortCode();
@@ -157,19 +165,26 @@ class URLService {
 
     @Transactional
     public URL createUrl(String originalUrl, User user, Integer expiresInDays) {
+        String duplicateCheckKey = "DUPLICATE_CHECK:" + user.getId() + ":" + originalUrl;
+        
+        // Check Redis if this user already created this URL recently
+        if (Boolean.TRUE.equals(redisTemplate.hasKey(duplicateCheckKey))) {
+            throw new UrlAlreadyExistsException("URL already exists");
+        }
+
+        // Check Postgres
         Optional<URL> optional = urlRepository.findByUserAndOriginalUrl(user, originalUrl);
         if (optional.isPresent()) {
+            // Cache the existence for 15 minutes to prevent future DB hits
+            redisTemplate.opsForValue().set(duplicateCheckKey, "1", Duration.ofMinutes(15));
             throw new UrlAlreadyExistsException("URL already exists");
         }
 
         URL newURL = new URL();
         newURL.setOriginalUrl(originalUrl);
         
-        if (expiresInDays != null) {
-            newURL.setExpiresAt(Instant.now().plus(expiresInDays, ChronoUnit.DAYS));
-        } else {
-            newURL.setExpiresAt(null);
-        }
+        Instant expiryDate = expiresInDays == null ? null : Instant.now().plus(expiresInDays, ChronoUnit.DAYS);
+        newURL.setExpiresAt(expiryDate);
         
         newURL.setClickCount(0);
         newURL.setUser(user);

@@ -3,6 +3,8 @@ package com.ayth.urlshortener.auth;
 import com.ayth.urlshortener.dto.request.LoginRequest;
 import com.ayth.urlshortener.dto.request.RegisterRequest;
 import com.ayth.urlshortener.dto.response.AuthResponse;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -27,9 +29,20 @@ class AuthController {
 
     @PostMapping("/login")
     public AuthResponse login(
-            @RequestBody @Valid LoginRequest request
+            @RequestBody @Valid LoginRequest request,
+            HttpServletResponse response
     ) {
-        return authService.login(request);
+        AuthResponse authResponse = authService.login(request);
+        
+        // Add JWT to an HttpOnly cookie
+        Cookie cookie = new Cookie("jwt", authResponse.getAccessToken());
+        cookie.setHttpOnly(true);
+        cookie.setSecure(true);
+        cookie.setPath("/");
+        cookie.setMaxAge(24 * 60 * 60);
+        response.addCookie(cookie);
+
+        return authResponse;
     }
 
     @GetMapping("/verify-email")

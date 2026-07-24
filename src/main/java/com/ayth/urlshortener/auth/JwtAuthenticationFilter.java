@@ -2,6 +2,7 @@ package com.ayth.urlshortener.auth;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -34,16 +35,31 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull FilterChain chain
     ) throws ServletException, IOException {
 
-        String authHeader = request.getHeader("Authorization");
+        String token = null;
 
-        // Skip requests with no Bearer token — they'll hit public endpoints
-        // or be rejected by Spring Security's access rules.
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        // Try to get token from cookies
+        if (request.getCookies() != null) {
+            for (Cookie cookie : request.getCookies()) {
+                if ("jwt".equals(cookie.getName())) {
+                    token = cookie.getValue();
+                    break;
+                }
+            }
+        }
+
+        // Fall back to Authorization header
+        if (token == null) {
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                token = authHeader.substring(7);
+            }
+        }
+
+        // If no token was found, skip to the next filter
+        if (token == null) {
             chain.doFilter(request, response);
             return;
         }
-
-        String token = authHeader.substring(7);
 
         try {
             // Only proceed if the token is valid and the context is not already set

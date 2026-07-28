@@ -7,6 +7,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -56,5 +57,21 @@ class AuthController {
     @PostMapping("/resend-verification")
     public AuthResponse resendVerification(@RequestParam String email) {
         return authService.resendVerificationEmail(email);
+    }
+
+    @GetMapping("/me")
+    public AuthResponse.UserDto getMe(@AuthenticationPrincipal UserPrincipal userPrincipal) {
+        return authService.getMe(userPrincipal);
+    }
+
+    @PostMapping("/logout")
+    public AuthResponse logout(HttpServletResponse response) {
+        Cookie cookie = new Cookie("jwt", null);
+        cookie.setHttpOnly(true);
+        cookie.setSecure(true);
+        cookie.setPath("/");
+        cookie.setMaxAge(0); // Deletes the cookie
+        response.addCookie(cookie);
+        return AuthResponse.builder().message("Logged out successfully").build();
     }
 }

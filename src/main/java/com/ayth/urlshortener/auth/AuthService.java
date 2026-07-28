@@ -14,6 +14,7 @@ import com.ayth.urlshortener.users.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -92,6 +93,13 @@ public class AuthService {
                 .accessToken(accessToken)
                 .user(toUserDto(user))
                 .build();
+    }
+
+    public AuthResponse.UserDto getMe(UserPrincipal userPrincipal) {
+        if (userPrincipal == null) {
+            throw new AuthenticationCredentialsNotFoundException("Not authenticated");
+        }
+        return toUserDto(userPrincipal.getUser());
     }
 
     @Transactional

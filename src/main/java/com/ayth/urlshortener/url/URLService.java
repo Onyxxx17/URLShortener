@@ -219,6 +219,31 @@ class URLService {
         urlRepository.delete(url);
     }
 
+    public List<CreateUrlResponse> getUrlsByUser(User user, String baseUrl) {
+        return urlRepository.findByUserOrderByCreatedAtDesc(user).stream()
+                .map(url -> CreateUrlResponse.builder()
+                        .id(url.getId())
+                        .shortUrl(baseUrl + "/" + url.getShortCode())
+                        .shortCode(url.getShortCode())
+                        .originalUrl(url.getOriginalUrl())
+                        .createdAt(url.getCreatedAt())
+                        .expiresAt(url.getExpiresAt())
+                        .clickCount(url.getClickCount())
+                        .createdBy(url.getUser().getEmail())
+                        .build())
+                .toList();
+    }
+
+    @Transactional
+    public void deleteByShortCodeForUser(String shortCode, User user) {
+        URL url = findByShortURL(shortCode);
+        if (!url.getUser().getId().equals(user.getId())) {
+            throw new org.springframework.security.access.AccessDeniedException("You do not own this URL");
+        }
+        evictCache(shortCode);
+        urlRepository.delete(url);
+    }
+
     public List<URL> findAll() {
         return urlRepository.findAll();
     }

@@ -4,6 +4,7 @@ import com.ayth.urlshortener.users.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import java.util.List;
 import java.util.Optional;
 
 interface URLRepository extends JpaRepository<URL, Long> {
@@ -13,5 +14,6 @@ interface URLRepository extends JpaRepository<URL, Long> {
     void deleteByShortCode(String shortCode);
     void deleteByOriginalUrl(String originalURL);
     Optional<URL> findByUserAndOriginalUrl(User user, String originalUrl);
+    List<URL> findByUserOrderByCreatedAtDesc(User user);
 
 }

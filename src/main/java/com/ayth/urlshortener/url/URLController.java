@@ -95,4 +95,31 @@ class URLController {
     public ResponseEntity<StatsResponse> getStats(@PathVariable String shortCode) {
         StatsResponse response = urlService.createUrlStatsResponse(shortCode);
         return ResponseEntity.ok(response);
-    }}
+    }
+
+    @GetMapping("/urls/my-urls")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<java.util.List<CreateUrlResponse>> getMyUrls(
+            HttpServletRequest request,
+            Authentication authentication) {
+        String baseUrl = request.getScheme() + "://" +
+                        request.getServerName() +
+                        (request.getServerPort() != 80 && request.getServerPort() != 443
+                            ? ":" + request.getServerPort()
+                            : "");
+        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+        User user = principal.getUser();
+        return ResponseEntity.ok(urlService.getUrlsByUser(user, baseUrl));
+    }
+
+    @DeleteMapping("/urls/{shortCode}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Void> deleteUrl(
+            @PathVariable String shortCode,
+            Authentication authentication) {
+        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+        User user = principal.getUser();
+        urlService.deleteByShortCodeForUser(shortCode, user);
+        return ResponseEntity.noContent().build();
+    }
+}

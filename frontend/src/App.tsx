@@ -4,17 +4,9 @@ import { AuthProvider } from './context/AuthContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Dashboard from './pages/Dashboard';
 import './App.css';
 
-// Placeholder for the dashboard to be built in Chunk 2
-const DashboardPlaceholder = () => (
-  <div className="landing-hero">
-    <h1>Dashboard Coming Soon</h1>
-    <p>We're building something clean.</p>
-  </div>
-);
-
-// Placeholder for the landing page
 const LandingPlaceholder = () => (
   <div className="landing-hero">
     <h1>Welcome to OnyxShortener</h1>
@@ -31,7 +23,7 @@ const App: React.FC = () => {
             <Route index element={<LandingPlaceholder />} />
             <Route path="login" element={<Login />} />
             <Route path="register" element={<Register />} />
-            <Route path="dashboard" element={<DashboardPlaceholder />} />
+            <Route path="dashboard" element={<Dashboard />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

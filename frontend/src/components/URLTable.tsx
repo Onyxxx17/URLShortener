@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { deleteUrl } from '../api/urls';
 import type { URLItem } from '../api/urls';
 
@@ -51,7 +52,7 @@ const URLTable: React.FC<URLTableProps> = ({ urls, onDelete, onCopy, onQR }) => 
                 {truncateUrl(url.originalUrl)}
               </td>
               <td className="short-url-cell">
-                <code>{url.shortCode}</code>
+                <Link to={`/stats/${url.shortCode}`}><code>{url.shortCode}</code></Link>
               </td>
               <td className="clicks-cell">{url.clickCount}</td>
               <td className="date-cell">{formatDate(url.createdAt)}</td>

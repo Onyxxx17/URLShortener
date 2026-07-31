@@ -5,6 +5,7 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import URLStats from './pages/URLStats';
 import './App.css';
 
 const LandingPlaceholder = () => (
@@ -24,6 +25,7 @@ const App: React.FC = () => {
             <Route path="login" element={<Login />} />
             <Route path="register" element={<Register />} />
             <Route path="dashboard" element={<Dashboard />} />
+            <Route path="stats/:shortCode" element={<URLStats />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

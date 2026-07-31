@@ -34,3 +34,30 @@ export const getQRCode = async (shortCode: string): Promise<Blob> => {
   const response = await api.get(`/${shortCode}/qr`, { responseType: 'blob' });
   return response.data;
 };
+
+// --- Stats types (matches StatsResponse.java) ---
+
+export interface ClickEvent {
+  clickedAt: string;
+  referer: string | null;
+  userAgent: string | null;
+}
+
+export interface StatsResponse {
+  id: number;
+  shortCode: string;
+  originalUrl: string;
+  clickCount: number;
+  createdAt: string;
+  expiresAt: string | null;
+  lastAccessedAt: string | null;
+  daysUntilExpiry: number | null;
+  isExpired: boolean;
+  ageInDays: number;
+  recentClicks: ClickEvent[];
+}
+
+export const getURLStats = async (shortCode: string): Promise<StatsResponse> => {
+  const response = await api.get(`/urls/${shortCode}/stats`);
+  return response.data;
+};

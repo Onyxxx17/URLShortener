@@ -1,7 +1,9 @@
 package com.ayth.urlshortener.auth;
 
+import com.ayth.urlshortener.dto.request.ForgotPasswordRequest;
 import com.ayth.urlshortener.dto.request.LoginRequest;
 import com.ayth.urlshortener.dto.request.RegisterRequest;
+import com.ayth.urlshortener.dto.request.ResetPasswordRequest;
 import com.ayth.urlshortener.dto.response.AuthResponse;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
@@ -59,6 +61,16 @@ class AuthController {
         return authService.resendVerificationEmail(email);
     }
 
+    @PostMapping("/forgot-password")
+    public AuthResponse forgotPassword(@RequestBody @Valid ForgotPasswordRequest request) {
+        return authService.requestPasswordReset(request.getEmail());
+    }
+
+    @PostMapping("/reset-password")
+    public AuthResponse resetPassword(@RequestBody @Valid ResetPasswordRequest request) {
+        return authService.resetPassword(request.getToken(), request.getNewPassword());
+    }
+
     @GetMapping("/me")
     public AuthResponse.UserDto getMe(@AuthenticationPrincipal UserPrincipal userPrincipal) {
         return authService.getMe(userPrincipal);
@@ -75,3 +87,4 @@ class AuthController {
         return AuthResponse.builder().message("Logged out successfully").build();
     }
 }
+

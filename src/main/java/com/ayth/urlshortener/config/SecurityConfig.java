@@ -76,7 +76,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Auth endpoints — always public
                         .requestMatchers(HttpMethod.POST, "/login", "/register",
-                                         "/resend-verification").permitAll()
+                                         "/resend-verification",
+                                         "/forgot-password", "/reset-password").permitAll()
                         .requestMatchers(HttpMethod.GET, "/verify-email").permitAll()
                         // Redirect short URLs — public
                         .requestMatchers(HttpMethod.GET, "/{shortCode}").permitAll()

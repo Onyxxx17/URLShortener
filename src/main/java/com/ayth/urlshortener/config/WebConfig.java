@@ -40,7 +40,7 @@ class WebConfig implements WebMvcConfigurer {
 
         // Enforce 3 req/min for auth endpoints to prevent spam
         registry.addInterceptor(ipRateLimitInterceptor)
-                .addPathPatterns("/register", "/resend-verification","/login");
+                .addPathPatterns("/register", "/resend-verification","/login","/reset-password","forgot-password");
 
         // Enforce 20 req/min for QR code generation
         registry.addInterceptor(qrRateLimitInterceptor)

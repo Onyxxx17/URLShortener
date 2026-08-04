@@ -34,13 +34,24 @@ class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(org.springframework.web.servlet.config.annotation.InterceptorRegistry registry) {
-        // Enforce 10 req/min for URL creation
+        // Enforce 10 req/min for authenticated actions
         registry.addInterceptor(userRateLimitInterceptor)
-                .addPathPatterns("/create");
+                .addPathPatterns(
+                        "/create",
+                        "/urls/my-urls",
+                        "/urls/*/stats",
+                        "/urls/*"
+                );
 
         // Enforce 3 req/min for auth endpoints to prevent spam
         registry.addInterceptor(ipRateLimitInterceptor)
-                .addPathPatterns("/register", "/resend-verification","/login","/reset-password","forgot-password");
+                .addPathPatterns(
+                        "/register", 
+                        "/resend-verification",
+                        "/login",
+                        "/reset-password",
+                        "/forgot-password"
+                );
 
         // Enforce 20 req/min for QR code generation
         registry.addInterceptor(qrRateLimitInterceptor)

@@ -14,6 +14,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.sqids.Sqids;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -34,16 +35,18 @@ class URLService {
     private final URLClickTracker urlClickTracker;
     private final URLClickEventRepository urlClickEventRepository;
     private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
 
     @Autowired
     URLService(URLRepository urlRepository, URLClickTracker urlClickTracker,
                UserRepository userRepository, URLClickEventRepository urlClickEventRepository,
-               StringRedisTemplate redisTemplate) {
+               StringRedisTemplate redisTemplate, ObjectMapper objectMapper) {
         this.urlRepository = urlRepository;
         this.urlClickTracker = urlClickTracker;
         this.userRepository = userRepository;
         this.urlClickEventRepository = urlClickEventRepository;
         this.redisTemplate = redisTemplate;
+        this.objectMapper = objectMapper;
     }
 
     public String getOriginalUrl(String shortCode) {
@@ -107,6 +110,18 @@ class URLService {
     }
 
     public StatsResponse createUrlStatsResponse(String shortCode) {
+        String cacheKey = "url:stats:" + shortCode;
+        try {
+            String cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null) {
+                log.debug("[CACHE] HIT for stats: {}", shortCode);
+                return objectMapper.readValue(cached, StatsResponse.class);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to read stats from cache for shortCode: {}", shortCode, e);
+        }
+        
+        log.debug("[CACHE] MISS for stats: {}", shortCode);
         URL url = findByShortURL(shortCode);
         Instant now = Instant.now();
 
@@ -125,7 +140,7 @@ class URLService {
                         .build())
                 .toList();
 
-        return StatsResponse.builder()
+        StatsResponse response = StatsResponse.builder()
                 .id(url.getId())
                 .shortCode(url.getShortCode())
                 .originalUrl(url.getOriginalUrl())
@@ -138,6 +153,15 @@ class URLService {
                 .ageInDays(ageInDays)
                 .recentClicks(recentClicks)
                 .build();
+
+        try {
+            String json = objectMapper.writeValueAsString(response);
+            redisTemplate.opsForValue().set(cacheKey, json, Duration.ofMinutes(1));
+        } catch (Exception e) {
+            log.warn("Failed to write stats to cache for shortCode: {}", shortCode, e);
+        }
+
+        return response;
     }
 
     public CreateUrlResponse createUrlWithResponse(String originalUrl, String baseUrl, User user, Integer expiresInDays) {

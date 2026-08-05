@@ -23,7 +23,7 @@ public class URLClickTracker {
     @Async
     @Transactional
     public void incrementClickCountAndUpdateLastAccessed(String shortCode, String referer, String userAgent) {
-        lastExecutionThreadName = Thread.currentThread().getName();
+        lastExecutionThreadName = Thread.currentThread().getName();      
         urlRepository.findByShortCode(shortCode).ifPresent(url -> {
             url.setClickCount(url.getClickCount() + 1);
             url.setLastAccessedAt(Instant.now());

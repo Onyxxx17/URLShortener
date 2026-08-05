@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Optional;
 import java.time.Instant;
 
-interface URLRepository extends JpaRepository<URL, Long> {
+public interface URLRepository extends JpaRepository<URL, Long> {
 
     Optional<URL> findByOriginalUrl(String originalURL);
     Optional<URL> findByShortCode(String shortURL);

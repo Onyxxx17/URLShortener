@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.net.URI;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,18 +36,17 @@ class URLService {
     private final URLClickTracker urlClickTracker;
     private final URLClickEventRepository urlClickEventRepository;
     private final StringRedisTemplate redisTemplate;
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @Autowired
     URLService(URLRepository urlRepository, URLClickTracker urlClickTracker,
                UserRepository userRepository, URLClickEventRepository urlClickEventRepository,
-               StringRedisTemplate redisTemplate, ObjectMapper objectMapper) {
+               StringRedisTemplate redisTemplate) {
         this.urlRepository = urlRepository;
         this.urlClickTracker = urlClickTracker;
         this.userRepository = userRepository;
         this.urlClickEventRepository = urlClickEventRepository;
         this.redisTemplate = redisTemplate;
-        this.objectMapper = objectMapper;
     }
 
     public String getOriginalUrl(String shortCode) {
@@ -110,18 +110,6 @@ class URLService {
     }
 
     public StatsResponse createUrlStatsResponse(String shortCode) {
-        String cacheKey = "url:stats:" + shortCode;
-        try {
-            String cached = redisTemplate.opsForValue().get(cacheKey);
-            if (cached != null) {
-                log.debug("[CACHE] HIT for stats: {}", shortCode);
-                return objectMapper.readValue(cached, StatsResponse.class);
-            }
-        } catch (Exception e) {
-            log.warn("Failed to read stats from cache for shortCode: {}", shortCode, e);
-        }
-        
-        log.debug("[CACHE] MISS for stats: {}", shortCode);
         URL url = findByShortURL(shortCode);
         Instant now = Instant.now();
 
@@ -131,8 +119,9 @@ class URLService {
                 : null;
         Long ageInDays = ChronoUnit.DAYS.between(url.getCreatedAt(), now);
 
-        List<StatsResponse.ClickEventDto> recentClicks = urlClickEventRepository
-                .findByUrlOrderByClickTimestampDesc(url).stream()
+        List<URLClickEvent> events = urlClickEventRepository.findByUrlOrderByClickTimestampDesc(url);
+        
+        List<StatsResponse.ClickEventDto> recentClicks = events.stream()
                 .map(event -> StatsResponse.ClickEventDto.builder()
                         .clickedAt(event.getClickTimestamp())
                         .referer(event.getReferer())
@@ -153,18 +142,20 @@ class URLService {
                 .ageInDays(ageInDays)
                 .recentClicks(recentClicks)
                 .build();
-
-        try {
-            String json = objectMapper.writeValueAsString(response);
-            redisTemplate.opsForValue().set(cacheKey, json, Duration.ofMinutes(1));
-        } catch (Exception e) {
-            log.warn("Failed to write stats to cache for shortCode: {}", shortCode, e);
-        }
-
         return response;
     }
 
     public CreateUrlResponse createUrlWithResponse(String originalUrl, String baseUrl, User user, Integer expiresInDays) {
+        try {
+            URI originalUri = URI.create(originalUrl);
+            URI baseUri = URI.create(baseUrl);
+            if (baseUri.getHost() != null && baseUri.getHost().equalsIgnoreCase(originalUri.getHost())) {
+                throw new IllegalArgumentException("Cannot shorten URLs pointing to our own domain.");
+            }
+        } catch (IllegalArgumentException e) {
+            if (e.getMessage() != null && e.getMessage().contains("Cannot shorten")) throw e;
+        }
+
         URL newURL = this.createUrl(originalUrl, user, expiresInDays);
         String fullShortUrl = baseUrl + "/" + newURL.getShortCode();
 

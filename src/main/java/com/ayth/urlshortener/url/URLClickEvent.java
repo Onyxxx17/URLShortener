@@ -35,4 +35,10 @@ public class URLClickEvent {
     @Column(name = "user_agent", length = 1000)
     private String userAgent;
 
+    @Column(name = "country")
+    private String country;
+
+    @Column(name = "city")
+    private String city;
+
 }

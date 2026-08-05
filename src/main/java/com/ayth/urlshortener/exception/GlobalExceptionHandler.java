@@ -39,9 +39,9 @@ class GlobalExceptionHandler {
                 .body(body);
     }
 
-    @ExceptionHandler(UnauthorizedException.class)
+    @ExceptionHandler({UnauthorizedException.class, org.springframework.security.authentication.AuthenticationCredentialsNotFoundException.class})
     public ResponseEntity<ErrorResponse> handleUnauthorized(
-            UnauthorizedException ex,
+            RuntimeException ex,
             WebRequest request
     ) {
         ErrorResponse body = ErrorResponse.of(
@@ -140,6 +140,14 @@ class GlobalExceptionHandler {
         ErrorResponse body = ErrorResponse.of(
                 403, "Forbidden", "You do not have permission to perform this action", getPath(request));
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
+    // ---- 400: Illegal argument (e.g. recursive shortening) ----
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex, WebRequest request) {
+        ErrorResponse body = ErrorResponse.of(
+                400, "Bad Request", ex.getMessage(), getPath(request));
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
     // ---- 500: Catch-all for anything unexpected ----

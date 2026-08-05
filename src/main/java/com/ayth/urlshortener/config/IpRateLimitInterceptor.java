@@ -27,7 +27,7 @@ public class IpRateLimitInterceptor implements HandlerInterceptor {
             return true;
         } else {
             response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
-            response.getWriter().write("Too many requests from this IP. Please try again later.");
+            response.getWriter().write("Too many requests. Please try again later.");
             return false;
         }
     }

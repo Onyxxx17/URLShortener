@@ -62,6 +62,9 @@ const Login: React.FC = () => {
               placeholder="••••••••"
             />
           </div>
+          <div className="form-helper-link">
+            <Link to="/forgot-password">Forgot password?</Link>
+          </div>
           
           <button 
             type="submit" 
@@ -74,7 +77,8 @@ const Login: React.FC = () => {
         </form>
 
         <div className="auth-footer">
-          Don't have an account? <Link to="/register">Sign up</Link>
+          <p>Don't have an account? <Link to="/register">Sign up</Link></p>
+          <p>Didn't get a verification email? <Link to="/resend-verification">Resend</Link></p>
         </div>
       </div>
     </div>

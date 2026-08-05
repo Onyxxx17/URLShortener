@@ -20,7 +20,6 @@ public class PasswordResetToken {
     @Column(columnDefinition = "uuid", updatable = false, nullable = false)
     private UUID id;
 
-    /** The opaque token value sent to the user's inbox. */
     @Column(nullable = false, unique = true, columnDefinition = "uuid")
     private UUID token;
 

@@ -6,6 +6,9 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import URLStats from './pages/URLStats';
+import ResendVerification from './pages/ResendVerification';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import './App.css';
 
 const LandingPlaceholder = () => (
@@ -26,6 +29,9 @@ const App: React.FC = () => {
             <Route path="register" element={<Register />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="stats/:shortCode" element={<URLStats />} />
+            <Route path="resend-verification" element={<ResendVerification />} />
+            <Route path="forgot-password" element={<ForgotPassword />} />
+            <Route path="reset-password" element={<ResetPassword />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

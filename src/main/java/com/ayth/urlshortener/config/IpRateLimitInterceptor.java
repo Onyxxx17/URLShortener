@@ -1,19 +1,18 @@
 package com.ayth.urlshortener.config;
 
-import io.github.bucket4j.Bucket;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
+
+import io.github.bucket4j.Bucket;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 @Component
 public class IpRateLimitInterceptor implements HandlerInterceptor {
 
     private final RateLimitingService rateLimitingService;
 
-    @Autowired
     public IpRateLimitInterceptor(RateLimitingService rateLimitingService) {
         this.rateLimitingService = rateLimitingService;
     }

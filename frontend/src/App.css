@@ -204,6 +204,25 @@
   text-decoration: underline;
 }
 
+.auth-footer p {
+  margin: 0.25rem 0;
+}
+
+.form-helper-link {
+  text-align: right;
+  margin-top: -0.5rem;
+}
+
+.form-helper-link a {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  transition: color 0.15s ease;
+}
+
+.form-helper-link a:hover {
+  color: var(--accent);
+}
+
 /* ========================================
    Alerts
    ======================================== */

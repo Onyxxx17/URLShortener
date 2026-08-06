@@ -7,10 +7,11 @@ A high-throughput, fully-featured URL shortening application with a Spring Boot 
 - **Shortcode Generation:** Collision-free shortcodes generated using a PostgreSQL sequence-backed Sqids encoding algorithm.
 - **Frontend Dashboard:** A sleek, responsive single-page application built with React, Vite, and vanilla CSS for managing your links.
 - **Advanced Authentication:** Secure JWT-based auth via `HttpOnly` cookies. Features an asynchronous SMTP email verification flow, resend verification, and a secure password reset flow.
-- **Analytics Engine:** Real-time tracking of HTTP headers (`Referer`, `User-Agent`) for every redirect click event, visualized in a CSS-only bar chart on the frontend.
+- **Analytics Engine:** Real-time tracking of HTTP headers (`Referer`, `User-Agent`) and geographic location (Country and City) for every redirect click event, visualized in a CSS-only bar chart on the frontend.
 - **QR Codes:** Instant, dynamic QR code generation for short URLs.
-- **High Performance:** Sub-millisecond read latency via Redis cache-aside architectures for URL redirects and password reset tokens.
-- **Resilience:** Token-bucket rate limiting using Bucket4j via Spring Interceptors to mitigate API abuse (rate limits applied per-user, per-IP, and per-endpoint).
+- **High Performance:** Sub-millisecond read latency via Redis cache-aside architectures for URL redirects, password reset tokens, and stats endpoints.
+- **Scheduled Maintenance:** Automated Spring cron jobs to periodically purge expired authentication tokens and URLs from the database.
+- **Resilience & Security:** Token-bucket rate limiting using Bucket4j via Spring Interceptors to mitigate API abuse. Strict validation rules prevent recursive shortening loops (e.g., preventing the shortening of the application's own domain).
 
 ## Tech Stack
 

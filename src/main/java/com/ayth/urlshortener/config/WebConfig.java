@@ -3,7 +3,6 @@ package com.ayth.urlshortener.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.filter.CommonsRequestLoggingFilter;
-import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
@@ -12,13 +11,16 @@ class WebConfig implements WebMvcConfigurer {
     private final UserRateLimitInterceptor userRateLimitInterceptor;
     private final IpRateLimitInterceptor ipRateLimitInterceptor;
     private final QrRateLimitInterceptor qrRateLimitInterceptor;
+    private final RedirectRateLimitInterceptor redirectRateLimitInterceptor;
 
     public WebConfig(UserRateLimitInterceptor userRateLimitInterceptor,
                      IpRateLimitInterceptor ipRateLimitInterceptor,
-                     QrRateLimitInterceptor qrRateLimitInterceptor) {
+                     QrRateLimitInterceptor qrRateLimitInterceptor,
+                     RedirectRateLimitInterceptor redirectRateLimitInterceptor) {
         this.userRateLimitInterceptor = userRateLimitInterceptor;
         this.ipRateLimitInterceptor = ipRateLimitInterceptor;
         this.qrRateLimitInterceptor = qrRateLimitInterceptor;
+        this.redirectRateLimitInterceptor = redirectRateLimitInterceptor;
     }
 
     @Bean
@@ -56,6 +58,10 @@ class WebConfig implements WebMvcConfigurer {
         // Enforce 20 req/min for QR code generation
         registry.addInterceptor(qrRateLimitInterceptor)
                 .addPathPatterns("/*/qr");
+
+        // Enforce 60 req/min for public redirect endpoints 
+        registry.addInterceptor(redirectRateLimitInterceptor)
+                .addPathPatterns("/{shortCode:[a-zA-Z0-9]{7,}}");
     }
 
 }

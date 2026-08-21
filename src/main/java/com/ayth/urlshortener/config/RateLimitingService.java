@@ -14,6 +14,7 @@ public class RateLimitingService {
     private final ConcurrentHashMap<String, Bucket> userBuckets = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Bucket> ipBuckets = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Bucket> qrIpBuckets = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Bucket> redirectIpBuckets = new ConcurrentHashMap<>();
 
     // 10 requests per minute for authenticated users
     private final Bandwidth userLimit = Bandwidth.classic(100, Refill.intervally(10, Duration.ofMinutes(1)));
@@ -24,6 +25,8 @@ public class RateLimitingService {
     // 20 requests per minute per IP for QR code generation
     private final Bandwidth qrIpLimit = Bandwidth.classic(20, Refill.intervally(20, Duration.ofMinutes(1)));
 
+    // 60 requests per minute per IP for public redirects
+    private final Bandwidth redirectIpLimit = Bandwidth.classic(60, Refill.intervally(60, Duration.ofMinutes(1)));
     public Bucket resolveUserBucket(String userId) {
         return userBuckets.computeIfAbsent(userId, key -> Bucket.builder()
                 .addLimit(userLimit)
@@ -39,6 +42,12 @@ public class RateLimitingService {
     public Bucket resolveQrIpBucket(String ipAddress) {
         return qrIpBuckets.computeIfAbsent(ipAddress, key -> Bucket.builder()
                 .addLimit(qrIpLimit)
+                .build());
+    }
+
+    public Bucket resolveRedirectIpBucket(String ipAddress) {
+        return redirectIpBuckets.computeIfAbsent(ipAddress, key -> Bucket.builder()
+                .addLimit(redirectIpLimit)
                 .build());
     }
 }

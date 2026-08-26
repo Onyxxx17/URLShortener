@@ -12,6 +12,10 @@ public class CreateUrlRequest {
     @NotNull(message = "URL must not be null")
     @NotBlank(message = "URL must not be blank")
     @URL(message = "Must be a valid URL")
+    @Pattern(
+        regexp = "^https?://.*",
+        message = "URL must use http or https scheme"
+    )
     @Size(max = 2048, message = "URL must not exceed 2048 characters")
     private String originalUrl;
 

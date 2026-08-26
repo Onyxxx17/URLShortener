@@ -2,6 +2,7 @@ package com.ayth.urlshortener.auth;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -19,9 +20,13 @@ import com.ayth.urlshortener.dto.response.AuthResponse;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 
 @RestController
 @RequestMapping("/")
+@Validated
 class AuthController {
 
     private final AuthService authService;
@@ -57,7 +62,14 @@ class AuthController {
     }
 
     @GetMapping("/verify-email")
-    public AuthResponse verifyEmail(@RequestParam String token) {
+    public AuthResponse verifyEmail(
+            @RequestParam
+            @NotBlank(message = "Token is required")
+            @Pattern(
+                regexp = "^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$",
+                message = "Invalid token format"
+            )
+            String token) {
         authService.verifyEmail(token);
         return AuthResponse.builder()
                 .message("Email verified successfully. You can now log in.")
@@ -65,7 +77,11 @@ class AuthController {
     }
 
     @PostMapping("/resend-verification")
-    public AuthResponse resendVerification(@RequestParam String email) {
+    public AuthResponse resendVerification(
+            @RequestParam
+            @NotBlank(message = "Email is required")
+            @Email(message = "Invalid email format")
+            String email) {
         return authService.resendVerificationEmail(email);
     }
 

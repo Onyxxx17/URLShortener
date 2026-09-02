@@ -5,265 +5,300 @@ import com.ayth.urlshortener.dto.response.StatsResponse;
 import com.ayth.urlshortener.exception.UrlAlreadyExistsException;
 import com.ayth.urlshortener.exception.UrlExpiredException;
 import com.ayth.urlshortener.exception.UrlNotFoundException;
+import com.ayth.urlshortener.users.User;
+import com.ayth.urlshortener.users.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
-@SpringBootTest
+/**
+ * Pure unit tests for URLService.
+ * No Spring context — all collaborators are Mockito mocks.
+ */
+@ExtendWith(MockitoExtension.class)
 class URLServiceTest {
 
-    @Autowired
-    private URLService urlService;
+    @Mock URLRepository urlRepository;
+    @Mock URLClickTracker urlClickTracker;
+    @Mock UserRepository userRepository;
+    @Mock URLClickEventRepository urlClickEventRepository;
+    @Mock StringRedisTemplate redisTemplate;
+    @Mock ValueOperations<String, String> valueOps;
 
-    @Autowired
-    private URLRepository urlRepository;
+    @InjectMocks URLService urlService;
 
-    private static final String TEST_SHORT_CODE = "testShort";
-    private static final String TEST_ORIGINAL_URL = "https://example-test.com";
+    private User user;
+    private URL activeUrl;
+    private URL expiredUrl;
+
+    private static final String SHORT_CODE = "abc1234";
+    private static final String ORIGINAL_URL = "https://example.com/some/path";
+    private static final String BASE_URL = "http://localhost:8080";
 
     @BeforeEach
     void setUp() {
-        URLClickTracker.lastExecutionThreadName = null;
-        cleanupTestDb();
+        user = new User();
+        user.setId(UUID.randomUUID());
+        user.setEmail("test@example.com");
+        user.setUsername("testuser");
+
+        activeUrl = new URL();
+        activeUrl.setId(1L);
+        activeUrl.setShortCode(SHORT_CODE);
+        activeUrl.setOriginalUrl(ORIGINAL_URL);
+        activeUrl.setCreatedAt(Instant.now().minus(2, ChronoUnit.DAYS));
+        activeUrl.setClickCount(5);
+        activeUrl.setUser(user);
+
+        expiredUrl = new URL();
+        expiredUrl.setId(2L);
+        expiredUrl.setShortCode("exp1234");
+        expiredUrl.setOriginalUrl(ORIGINAL_URL);
+        expiredUrl.setCreatedAt(Instant.now().minus(10, ChronoUnit.DAYS));
+        expiredUrl.setExpiresAt(Instant.now().minus(1, ChronoUnit.DAYS));
+        expiredUrl.setClickCount(0);
+        expiredUrl.setUser(user);
     }
 
-    private void cleanupTestDb() {
-        urlRepository.findByShortCode("testAsync").ifPresent(urlRepository::delete);
-        urlRepository.findByShortCode(TEST_SHORT_CODE).ifPresent(urlRepository::delete);
-        urlRepository.findByOriginalUrl(TEST_ORIGINAL_URL).ifPresent(urlRepository::delete);
-        urlRepository.findByOriginalUrl("https://already-exists.com").ifPresent(urlRepository::delete);
-        urlRepository.findByShortCode("exist123").ifPresent(urlRepository::delete);
-    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // getOriginalUrl — cache HIT paths
+    // ─────────────────────────────────────────────────────────────────────────
 
-    // ==========================================
-    // Async Click Tracking & Redirect Tests
-    // ==========================================
     @Test
-    void getUrlForRedirect_ShouldIncrementClickCountAsynchronously() throws InterruptedException {
-        String shortCode = "testAsync";
-        URL url = new URL();
-        url.setOriginalUrl("https://example.com");
-        url.setShortCode(shortCode);
-        url.setCreatedAt(Instant.now());
-        url.setClickCount(0);
-        urlRepository.save(url);
+    void getOriginalUrl_cacheHit_returnsOriginalUrl() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("url:redirect:" + SHORT_CODE))
+                .thenReturn(ORIGINAL_URL + "|null");
 
-        String callingThreadName = Thread.currentThread().getName();
+        String result = urlService.getOriginalUrl(SHORT_CODE);
 
-        try {
-            String redirectUrl = urlService.getUrlForRedirect(shortCode);
-            assertEquals("https://example.com", redirectUrl);
-
-            // Wait for the async task to execute (max 5 seconds)
-            boolean executed = false;
-            for (int i = 0; i < 50; i++) {
-                if (URLClickTracker.lastExecutionThreadName != null) {
-                    executed = true;
-                    break;
-                }
-                Thread.sleep(100);
-            }
-            assertTrue(executed, "The async click tracking task was not executed within the timeout");
-            assertNotEquals(callingThreadName, URLClickTracker.lastExecutionThreadName);
-
-            // Verify db count updated
-            URL updatedUrl = urlRepository.findByShortCode(shortCode).orElseThrow();
-            assertEquals(1, updatedUrl.getClickCount());
-            assertNotNull(updatedUrl.getLastAccessedAt());
-        } finally {
-            urlRepository.findByShortCode(shortCode).ifPresent(urlRepository::delete);
-        }
+        assertThat(result).isEqualTo(ORIGINAL_URL);
+        verifyNoInteractions(urlRepository);
     }
 
     @Test
-    void getUrlForRedirect_ShouldThrowUrlExpiredException_WhenExpired() {
-        URL url = new URL();
-        url.setOriginalUrl(TEST_ORIGINAL_URL);
-        url.setShortCode(TEST_SHORT_CODE);
-        url.setCreatedAt(Instant.now().minus(10, ChronoUnit.DAYS));
-        url.setExpiresAt(Instant.now().minus(1, ChronoUnit.DAYS)); // Past expiration
-        urlRepository.save(url);
+    void getOriginalUrl_cacheHitNegative_throwsUrlNotFoundException() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("url:redirect:" + SHORT_CODE)).thenReturn("NOT_FOUND");
 
-        try {
-            assertThrows(UrlExpiredException.class, () -> urlService.getUrlForRedirect(TEST_SHORT_CODE));
-        } finally {
-            urlRepository.delete(url);
-        }
-    }
-
-    // ==========================================
-    // Find URL Tests
-    // ==========================================
-    @Test
-    void findByShortURL_ShouldReturnUrl_WhenExists() {
-        URL url = new URL();
-        url.setOriginalUrl(TEST_ORIGINAL_URL);
-        url.setShortCode(TEST_SHORT_CODE);
-        urlRepository.save(url);
-
-        try {
-            URL found = urlService.findByShortURL(TEST_SHORT_CODE);
-            assertNotNull(found);
-            assertEquals(TEST_ORIGINAL_URL, found.getOriginalUrl());
-        } finally {
-            urlRepository.delete(url);
-        }
+        assertThatThrownBy(() -> urlService.getOriginalUrl(SHORT_CODE))
+                .isInstanceOf(UrlNotFoundException.class);
     }
 
     @Test
-    void findByShortURL_ShouldThrowUrlNotFoundException_WhenNotExists() {
-        assertThrows(UrlNotFoundException.class, () -> urlService.findByShortURL("nonExistentCode"));
+    void getOriginalUrl_cacheHitExpired_throwsUrlExpiredException() {
+        String expiry = Instant.now().minus(1, ChronoUnit.HOURS).toString();
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("url:redirect:" + SHORT_CODE))
+                .thenReturn(ORIGINAL_URL + "|" + expiry);
+        when(redisTemplate.delete("url:redirect:" + SHORT_CODE)).thenReturn(true);
+
+        assertThatThrownBy(() -> urlService.getOriginalUrl(SHORT_CODE))
+                .isInstanceOf(UrlExpiredException.class);
     }
 
-    // ==========================================
-    // Create URL Tests
-    // ==========================================
-    @Test
-    void createUrl_ShouldCreateAndSaveUrl_WhenNewUrl() {
-        try {
-            URL created = urlService.createUrl(TEST_ORIGINAL_URL);
-            assertNotNull(created);
-            assertNotNull(created.getShortCode());
-            assertEquals(TEST_ORIGINAL_URL, created.getOriginalUrl());
-            assertEquals(0, created.getClickCount());
-            assertNotNull(created.getExpiresAt());
-
-            Optional<URL> saved = urlRepository.findByOriginalUrl(TEST_ORIGINAL_URL);
-            assertTrue(saved.isPresent());
-        } finally {
-            urlRepository.findByOriginalUrl(TEST_ORIGINAL_URL).ifPresent(urlRepository::delete);
-        }
-    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // getOriginalUrl — cache MISS paths (falls back to DB)
+    // ─────────────────────────────────────────────────────────────────────────
 
     @Test
-    void createUrl_ShouldThrowUrlAlreadyExistsException_WhenUrlAlreadyExists() {
-        URL url = new URL();
-        url.setOriginalUrl("https://already-exists.com");
-        url.setShortCode("exist123");
-        url.setCreatedAt(Instant.now());
-        urlRepository.save(url);
+    void getOriginalUrl_cacheMiss_hitsDbAndCaches() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get(any())).thenReturn(null);
+        when(urlRepository.findByShortCode(SHORT_CODE)).thenReturn(Optional.of(activeUrl));
 
-        try {
-            assertThrows(UrlAlreadyExistsException.class, () -> urlService.createUrl("https://already-exists.com"));
-        } finally {
-            urlRepository.delete(url);
-        }
+        String result = urlService.getOriginalUrl(SHORT_CODE);
+
+        assertThat(result).isEqualTo(ORIGINAL_URL);
+        verify(valueOps).set(eq("url:redirect:" + SHORT_CODE), anyString(), any());
     }
 
     @Test
-    void createUrlWithResponse_ShouldReturnCreateUrlResponse() {
-        try {
-            CreateUrlResponse response = urlService.createUrlWithResponse(TEST_ORIGINAL_URL, "http://localhost:8080");
-            assertNotNull(response);
-            assertNotNull(response.getShortCode());
-            assertTrue(response.getShortUrl().startsWith("http://localhost:8080/"));
-            assertEquals(TEST_ORIGINAL_URL, response.getOriginalUrl());
-        } finally {
-            urlRepository.findByOriginalUrl(TEST_ORIGINAL_URL).ifPresent(urlRepository::delete);
-        }
-    }
+    void getOriginalUrl_cacheMiss_notFound_negativelyCachesAndThrows() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get(any())).thenReturn(null);
+        when(urlRepository.findByShortCode(SHORT_CODE)).thenReturn(Optional.empty());
 
-    // ==========================================
-    // Statistics Response Tests
-    // ==========================================
-    @Test
-    void createUrlStatsResponse_ShouldReturnStatsResponseAndUpdateLastAccessed() {
-        URL url = new URL();
-        url.setOriginalUrl(TEST_ORIGINAL_URL);
-        url.setShortCode(TEST_SHORT_CODE);
-        url.setCreatedAt(Instant.now().minus(2, ChronoUnit.DAYS));
-        url.setExpiresAt(Instant.now().plus(5, ChronoUnit.DAYS));
-        urlRepository.save(url);
+        assertThatThrownBy(() -> urlService.getOriginalUrl(SHORT_CODE))
+                .isInstanceOf(UrlNotFoundException.class);
 
-        try {
-            StatsResponse response = urlService.createUrlStatsResponse(TEST_SHORT_CODE);
-            assertNotNull(response);
-            assertEquals(TEST_SHORT_CODE, response.getShortCode());
-            assertEquals(TEST_ORIGINAL_URL, response.getOriginalUrl());
-            assertNotNull(response.getLastAccessedAt());
-            assertTrue(response.getDaysUntilExpiry() >= 4);
-            assertTrue(response.getAgeInDays() >= 2);
-            assertFalse(response.getIsExpired());
-        } finally {
-            urlRepository.delete(url);
-        }
-    }
-
-    // ==========================================
-    // Delete URL Tests
-    // ==========================================
-    @Test
-    void deleteById_ShouldDeleteUrl_WhenExists() {
-        URL url = new URL();
-        url.setOriginalUrl(TEST_ORIGINAL_URL);
-        url.setShortCode(TEST_SHORT_CODE);
-        URL saved = urlRepository.save(url);
-
-        urlService.deleteById(saved.getId());
-        assertTrue(urlRepository.findById(saved.getId()).isEmpty());
+        verify(valueOps).set(eq("url:redirect:" + SHORT_CODE), eq("NOT_FOUND"), any());
     }
 
     @Test
-    void deleteById_ShouldThrowUrlNotFoundException_WhenNotExists() {
-        assertThrows(UrlNotFoundException.class, () -> urlService.deleteById(99999L));
+    void getOriginalUrl_cacheMiss_expiredUrl_throwsUrlExpiredException() {
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get(any())).thenReturn(null);
+        when(urlRepository.findByShortCode("exp1234")).thenReturn(Optional.of(expiredUrl));
+
+        assertThatThrownBy(() -> urlService.getOriginalUrl("exp1234"))
+                .isInstanceOf(UrlExpiredException.class);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // createUrlWithResponse
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    void createUrlWithResponse_success_returnsResponse() {
+        when(redisTemplate.hasKey(anyString())).thenReturn(false);
+        when(urlRepository.findByUserAndOriginalUrl(user, ORIGINAL_URL)).thenReturn(Optional.empty());
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(urlRepository.save(any(URL.class))).thenAnswer(inv -> {
+            URL url = inv.getArgument(0);
+            if (url.getId() == null) url.setId(99L);
+            return url;
+        });
+
+        CreateUrlResponse response = urlService.createUrlWithResponse(ORIGINAL_URL, BASE_URL, user, null);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getOriginalUrl()).isEqualTo(ORIGINAL_URL);
+        assertThat(response.getShortUrl()).startsWith(BASE_URL + "/");
+        assertThat(response.getCreatedBy()).isEqualTo(user.getEmail());
     }
 
     @Test
-    void deleteByShortCode_ShouldDeleteUrl_WhenExists() {
-        URL url = new URL();
-        url.setOriginalUrl(TEST_ORIGINAL_URL);
-        url.setShortCode(TEST_SHORT_CODE);
-        urlRepository.save(url);
-
-        urlService.deleteByShortCode(TEST_SHORT_CODE);
-        assertTrue(urlRepository.findByShortCode(TEST_SHORT_CODE).isEmpty());
+    void createUrlWithResponse_selfDomain_throwsIllegalArgumentException() {
+        assertThatThrownBy(() ->
+                urlService.createUrlWithResponse("http://localhost:8080/abc1234", BASE_URL, user, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Cannot shorten URLs pointing to our own domain");
     }
 
     @Test
-    void deleteByShortCode_ShouldThrowUrlNotFoundException_WhenNotExists() {
-        assertThrows(UrlNotFoundException.class, () -> urlService.deleteByShortCode("nonExistentCode"));
+    void createUrlWithResponse_duplicateInRedis_throwsUrlAlreadyExistsException() {
+        when(redisTemplate.hasKey(anyString())).thenReturn(true);
+
+        assertThatThrownBy(() ->
+                urlService.createUrlWithResponse(ORIGINAL_URL, BASE_URL, user, null))
+                .isInstanceOf(UrlAlreadyExistsException.class);
     }
 
     @Test
-    void deleteByOriginalURL_ShouldDeleteUrl_WhenExists() {
-        URL url = new URL();
-        url.setOriginalUrl(TEST_ORIGINAL_URL);
-        url.setShortCode(TEST_SHORT_CODE);
-        urlRepository.save(url);
+    void createUrlWithResponse_duplicateInDb_throwsUrlAlreadyExistsException() {
+        when(redisTemplate.hasKey(anyString())).thenReturn(false);
+        when(urlRepository.findByUserAndOriginalUrl(user, ORIGINAL_URL)).thenReturn(Optional.of(activeUrl));
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
 
-        urlService.deleteByOriginalURL(TEST_ORIGINAL_URL);
-        assertTrue(urlRepository.findByOriginalUrl(TEST_ORIGINAL_URL).isEmpty());
+        assertThatThrownBy(() ->
+                urlService.createUrlWithResponse(ORIGINAL_URL, BASE_URL, user, null))
+                .isInstanceOf(UrlAlreadyExistsException.class);
     }
 
     @Test
-    void deleteByOriginalURL_ShouldThrowUrlNotFoundException_WhenNotExists() {
-        assertThrows(UrlNotFoundException.class, () -> urlService.deleteByOriginalURL("https://non-existent.com"));
+    void createUrlWithResponse_withExpiry_setsExpiresAt() {
+        when(redisTemplate.hasKey(anyString())).thenReturn(false);
+        when(urlRepository.findByUserAndOriginalUrl(user, ORIGINAL_URL)).thenReturn(Optional.empty());
+        when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(urlRepository.save(any(URL.class))).thenAnswer(inv -> {
+            URL url = inv.getArgument(0);
+            if (url.getId() == null) url.setId(99L);
+            return url;
+        });
+
+        CreateUrlResponse response = urlService.createUrlWithResponse(ORIGINAL_URL, BASE_URL, user, 7);
+
+        assertThat(response.getExpiresAt()).isNotNull();
+        assertThat(response.getExpiresAt()).isAfter(Instant.now().plus(6, ChronoUnit.DAYS));
     }
 
-    // ==========================================
-    // List All Tests
-    // ==========================================
-    @Test
-    void findAll_ShouldReturnAllUrls() {
-        URL url = new URL();
-        url.setOriginalUrl(TEST_ORIGINAL_URL);
-        url.setShortCode(TEST_SHORT_CODE);
-        urlRepository.save(url);
+    // ─────────────────────────────────────────────────────────────────────────
+    // createUrlStatsResponse
+    // ─────────────────────────────────────────────────────────────────────────
 
-        try {
-            List<URL> all = urlService.findAll();
-            assertFalse(all.isEmpty());
-            assertTrue(all.stream().anyMatch(u -> u.getShortCode().equals(TEST_SHORT_CODE)));
-        } finally {
-            urlRepository.delete(url);
-        }
+    @Test
+    void createUrlStatsResponse_activeUrl_returnsCorrectStats() {
+        when(urlRepository.findByShortCode(SHORT_CODE)).thenReturn(Optional.of(activeUrl));
+        when(urlClickEventRepository.findByUrlOrderByClickTimestampDesc(activeUrl))
+                .thenReturn(List.of());
+
+        StatsResponse stats = urlService.createUrlStatsResponse(SHORT_CODE);
+
+        assertThat(stats.getShortCode()).isEqualTo(SHORT_CODE);
+        assertThat(stats.getOriginalUrl()).isEqualTo(ORIGINAL_URL);
+        assertThat(stats.getClickCount()).isEqualTo(5);
+        assertThat(stats.getIsExpired()).isFalse();
+        assertThat(stats.getAgeInDays()).isGreaterThanOrEqualTo(2L);
+        assertThat(stats.getDaysUntilExpiry()).isNull(); // no expiry set
+    }
+
+    @Test
+    void createUrlStatsResponse_expiredUrl_isExpiredTrue() {
+        when(urlRepository.findByShortCode("exp1234")).thenReturn(Optional.of(expiredUrl));
+        when(urlClickEventRepository.findByUrlOrderByClickTimestampDesc(expiredUrl))
+                .thenReturn(List.of());
+
+        StatsResponse stats = urlService.createUrlStatsResponse("exp1234");
+
+        assertThat(stats.getIsExpired()).isTrue();
+        assertThat(stats.getDaysUntilExpiry()).isNull();
+    }
+
+    @Test
+    void createUrlStatsResponse_notFound_throwsUrlNotFoundException() {
+        when(urlRepository.findByShortCode("notExist")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> urlService.createUrlStatsResponse("notExist"))
+                .isInstanceOf(UrlNotFoundException.class);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // deleteByShortCodeForUser
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    void deleteByShortCodeForUser_owner_deletesSuccessfully() {
+        when(urlRepository.findByShortCode(SHORT_CODE)).thenReturn(Optional.of(activeUrl));
+        when(redisTemplate.delete("url:redirect:" + SHORT_CODE)).thenReturn(true);
+
+        urlService.deleteByShortCodeForUser(SHORT_CODE, user);
+
+        verify(urlRepository).delete(activeUrl);
+    }
+
+    @Test
+    void deleteByShortCodeForUser_nonOwner_throwsAccessDeniedException() {
+        User otherUser = new User();
+        otherUser.setId(UUID.randomUUID());
+
+        when(urlRepository.findByShortCode(SHORT_CODE)).thenReturn(Optional.of(activeUrl));
+
+        assertThatThrownBy(() -> urlService.deleteByShortCodeForUser(SHORT_CODE, otherUser))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+
+        verify(urlRepository, never()).delete(any());
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // getUrlsByUser
+    // ─────────────────────────────────────────────────────────────────────────
+
+    @Test
+    void getUrlsByUser_returnsListOfResponses() {
+        when(urlRepository.findByUserOrderByCreatedAtDesc(user))
+                .thenReturn(List.of(activeUrl));
+
+        List<CreateUrlResponse> result = urlService.getUrlsByUser(user, BASE_URL);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getShortCode()).isEqualTo(SHORT_CODE);
+        assertThat(result.get(0).getShortUrl()).startsWith(BASE_URL + "/");
     }
 }

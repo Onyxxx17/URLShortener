@@ -239,11 +239,8 @@ class URLControllerTest {
                 .recentClicks(List.of())
                 .build();
 
-        when(urlService.createUrlStatsResponse("abc1234")).thenReturn(stats);
+        when(urlService.createUrlStatsResponse(eq("abc1234"), any(User.class))).thenReturn(stats);
 
-        // /urls/*/stats falls under anyRequest().authenticated(), so a principal
-        // is required. Note it is any authenticated user — there is no ownership
-        // check on this endpoint (see DEPLOYMENT_READINESS.md B2).
         mockMvc.perform(get("/urls/abc1234/stats")
                         .with(user(testPrincipal)))
                 .andExpect(status().isOk())
@@ -253,13 +250,33 @@ class URLControllerTest {
     }
 
     @Test
-    void getStats_notFound_returns404() throws Exception {
-        when(urlService.createUrlStatsResponse("nothere"))
-                .thenThrow(new UrlNotFoundException("not found"));
+    void getStats_notFound_returns404WithMessage() throws Exception {
+        when(urlService.createUrlStatsResponse(eq("nothere"), any(User.class)))
+                .thenThrow(new UrlNotFoundException("Url with short code nothere not found"));
 
         mockMvc.perform(get("/urls/nothere/stats")
                         .with(user(testPrincipal)))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.message").value("Url with short code nothere not found"));
+    }
+
+    @Test
+    void getStats_unauthenticated_returns401WithEmptyBody() throws Exception {
+        mockMvc.perform(get("/urls/abc1234/stats"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(content().string(""));
+    }
+
+    @Test
+    void getStats_nonOwner_returns403WithMessage() throws Exception {
+        when(urlService.createUrlStatsResponse(eq("abc1234"), any(User.class)))
+                .thenThrow(new org.springframework.security.access.AccessDeniedException(
+                        "You do not own this URL"));
+
+        mockMvc.perform(get("/urls/abc1234/stats")
+                        .with(user(testPrincipal)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.message").value("You do not have permission to perform this action"));
     }
 
     // ─────────────────────────────────────────────────────────────────────────

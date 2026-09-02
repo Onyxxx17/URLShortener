@@ -25,6 +25,7 @@ const URLStats: React.FC = () => {
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [needsLogin, setNeedsLogin] = useState(false);
 
   useEffect(() => {
     if (!shortCode) return;
@@ -32,8 +33,14 @@ const URLStats: React.FC = () => {
       try {
         const data = await getURLStats(shortCode);
         setStats(data);
-      } catch {
-        setError('Failed to load stats for this URL.');
+      } catch (err: any) {
+      
+        if (err.response?.status === 401) {
+          setNeedsLogin(true);
+          setError('Please log in to view these stats.');
+        } else {
+          setError(err.response?.data?.message || 'Failed to load stats for this URL.');
+        }
       } finally {
         setLoading(false);
       }
@@ -58,7 +65,11 @@ const URLStats: React.FC = () => {
       <div className="stats-page">
         <div className="stats-error-container">
           <p className="dashboard-error">{error || 'URL not found.'}</p>
-          <Link to="/dashboard" className="btn-secondary">← Back to Dashboard</Link>
+          {needsLogin ? (
+            <Link to="/login" className="btn-secondary">Log in</Link>
+          ) : (
+            <Link to="/dashboard" className="btn-secondary">← Back to Dashboard</Link>
+          )}
         </div>
       </div>
     );

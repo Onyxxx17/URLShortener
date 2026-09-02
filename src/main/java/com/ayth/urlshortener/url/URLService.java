@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.sqids.Sqids;
@@ -109,8 +110,11 @@ class URLService {
         return optional.orElseThrow(() -> new UrlNotFoundException("Url with short code " + shortURL + " not found"));
     }
 
-    public StatsResponse createUrlStatsResponse(String shortCode) {
+    public StatsResponse createUrlStatsResponse(String shortCode, User user) {
         URL url = findByShortURL(shortCode);
+        if (!url.getUser().getId().equals(user.getId())) {
+            throw new AccessDeniedException("You do not own this URL");
+        }
         Instant now = Instant.now();
 
         boolean isExpired = url.getExpiresAt() != null && url.getExpiresAt().isBefore(now);
@@ -253,7 +257,7 @@ class URLService {
     public void deleteByShortCodeForUser(String shortCode, User user) {
         URL url = findByShortURL(shortCode);
         if (!url.getUser().getId().equals(user.getId())) {
-            throw new org.springframework.security.access.AccessDeniedException("You do not own this URL");
+            throw new AccessDeniedException("You do not own this URL");
         }
         evictCache(shortCode);
         urlRepository.delete(url);

@@ -1,21 +1,5 @@
 package com.ayth.urlshortener.url;
 
-import com.ayth.urlshortener.dto.response.CreateUrlResponse;
-import com.ayth.urlshortener.dto.response.StatsResponse;
-import com.ayth.urlshortener.exception.UrlAlreadyExistsException;
-import com.ayth.urlshortener.exception.UrlExpiredException;
-import com.ayth.urlshortener.exception.UrlNotFoundException;
-import com.ayth.urlshortener.users.User;
-import com.ayth.urlshortener.users.UserRepository;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
-
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -24,8 +8,29 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
+
+import com.ayth.urlshortener.dto.response.CreateUrlResponse;
+import com.ayth.urlshortener.dto.response.StatsResponse;
+import com.ayth.urlshortener.exception.UrlAlreadyExistsException;
+import com.ayth.urlshortener.exception.UrlExpiredException;
+import com.ayth.urlshortener.exception.UrlNotFoundException;
+import com.ayth.urlshortener.users.User;
+import com.ayth.urlshortener.users.UserRepository;
 
 /**
  * Pure unit tests for URLService.
@@ -229,7 +234,7 @@ class URLServiceTest {
         when(urlClickEventRepository.findByUrlOrderByClickTimestampDesc(activeUrl))
                 .thenReturn(List.of());
 
-        StatsResponse stats = urlService.createUrlStatsResponse(SHORT_CODE);
+        StatsResponse stats = urlService.createUrlStatsResponse(SHORT_CODE, user);
 
         assertThat(stats.getShortCode()).isEqualTo(SHORT_CODE);
         assertThat(stats.getOriginalUrl()).isEqualTo(ORIGINAL_URL);
@@ -245,7 +250,7 @@ class URLServiceTest {
         when(urlClickEventRepository.findByUrlOrderByClickTimestampDesc(expiredUrl))
                 .thenReturn(List.of());
 
-        StatsResponse stats = urlService.createUrlStatsResponse("exp1234");
+        StatsResponse stats = urlService.createUrlStatsResponse("exp1234", user);
 
         assertThat(stats.getIsExpired()).isTrue();
         assertThat(stats.getDaysUntilExpiry()).isNull();
@@ -255,8 +260,22 @@ class URLServiceTest {
     void createUrlStatsResponse_notFound_throwsUrlNotFoundException() {
         when(urlRepository.findByShortCode("notExist")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> urlService.createUrlStatsResponse("notExist"))
+        assertThatThrownBy(() -> urlService.createUrlStatsResponse("notExist", user))
                 .isInstanceOf(UrlNotFoundException.class);
+    }
+
+    @Test
+    void createUrlStatsResponse_nonOwner_throwsAccessDeniedException() {
+
+        User otherUser = new User();
+        otherUser.setId(UUID.randomUUID());
+
+        when(urlRepository.findByShortCode(SHORT_CODE)).thenReturn(Optional.of(activeUrl));
+
+        assertThatThrownBy(() -> urlService.createUrlStatsResponse(SHORT_CODE, otherUser))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+
+        verify(urlClickEventRepository, never()).findByUrlOrderByClickTimestampDesc(any());
     }
 
     // ─────────────────────────────────────────────────────────────────────────

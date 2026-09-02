@@ -92,8 +92,13 @@ class URLController {
     }
 
     @GetMapping("/urls/{shortCode}/stats")
-    public ResponseEntity<StatsResponse> getStats(@PathVariable String shortCode) {
-        StatsResponse response = urlService.createUrlStatsResponse(shortCode);
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<StatsResponse> getStats(
+            @PathVariable String shortCode,
+            Authentication authentication) {
+        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+        User user = principal.getUser();
+        StatsResponse response = urlService.createUrlStatsResponse(shortCode, user);
         return ResponseEntity.ok(response);
     }
 

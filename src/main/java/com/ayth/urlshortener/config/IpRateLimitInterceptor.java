@@ -19,7 +19,7 @@ public class IpRateLimitInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        String ipAddress = getClientIp(request);
+        String ipAddress = ClientIpResolver.resolveClientIp(request);
         Bucket bucket = rateLimitingService.resolveIpBucket(ipAddress);
 
         if (bucket.tryConsume(1)) {
@@ -29,13 +29,5 @@ public class IpRateLimitInterceptor implements HandlerInterceptor {
             response.getWriter().write("Too many requests. Please try again later.");
             return false;
         }
-    }
-
-    private String getClientIp(HttpServletRequest request) {
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
-            return xForwardedFor.split(",")[0].trim();
-        }
-        return request.getRemoteAddr();
     }
 }

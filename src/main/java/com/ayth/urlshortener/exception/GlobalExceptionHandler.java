@@ -1,6 +1,9 @@
 package com.ayth.urlshortener.exception;
 
-import com.ayth.urlshortener.dto.response.ErrorResponse;
+import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,10 +15,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 
-import java.util.List;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.ayth.urlshortener.dto.response.ErrorResponse;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -153,10 +153,11 @@ public class GlobalExceptionHandler {
     // ---- 500: Catch-all for anything unexpected ----
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneric(Exception ex, WebRequest request) {
-        // Log the real exception so it's visible in the server console
+        
+        
         log.error("[500] Unexpected error on {}: {}", getPath(request), ex.getMessage(), ex);
         ErrorResponse body = ErrorResponse.of(
-                500, "Internal Server Error", ex.getClass().getSimpleName() + ": " + ex.getMessage(), getPath(request));
+                500, "Internal Server Error", "An unexpected error occurred. Please try again later.", getPath(request));
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 

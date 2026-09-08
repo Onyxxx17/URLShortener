@@ -25,6 +25,9 @@ public class EmailService {
     @Value("${app.base-url}")
     private String baseUrl;
 
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
+
     // ── Public API ────────────────────────────────────────────────────────────
 
     @Async
@@ -109,7 +112,7 @@ public class EmailService {
     @Async
     public void sendPasswordResetEmail(String toEmail, String token) {
         log.debug("[MAIL] Preparing to send password reset email to {}", toEmail);
-        String link = baseUrl.replace(":8080", ":5173") + "/reset-password?token=" + token;
+        String link = frontendUrl + "/reset-password?token=" + token;
         String subject = "Reset your password - URL Shortener";
 
         String html = buildPasswordResetHtml(toEmail, link);

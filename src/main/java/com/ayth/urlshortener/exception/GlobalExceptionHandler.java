@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.ayth.urlshortener.dto.response.ErrorResponse;
 
@@ -148,6 +149,15 @@ public class GlobalExceptionHandler {
         ErrorResponse body = ErrorResponse.of(
                 400, "Bad Request", ex.getMessage(), getPath(request));
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    // ---- 404: Unmapped route / disabled static resource (e.g. Swagger UI
+    // turned off via springdoc.swagger-ui.enabled=false) ----
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNoResourceFound(NoResourceFoundException ex, WebRequest request) {
+        ErrorResponse body = ErrorResponse.of(
+                404, "Not Found", "The requested resource was not found", getPath(request));
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 
     // ---- 500: Catch-all for anything unexpected ----
